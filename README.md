@@ -1,4 +1,4 @@
-# mcp-sqlite
+# mcp-data
 
 A generic **Model Context Protocol (MCP) server and client** for querying databases.
 It starts with a local **SQLite** backend behind a generic `DataBackend` abstraction so
