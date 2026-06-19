@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from dotenv import load_dotenv
+
 Transport = Literal["stdio", "http"]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -20,6 +22,11 @@ DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "example.db"
 
 # Path component the Streamable HTTP transport is mounted under.
 MCP_PATH = "/mcp"
+
+# Load variables from a .env file at the project root if it exists. Missing
+# files are ignored, and existing OS environment variables take precedence so
+# that explicit overrides keep working.
+load_dotenv(PROJECT_ROOT / ".env", override=False)
 
 
 def _env_transport(default: Transport = "stdio") -> Transport:
