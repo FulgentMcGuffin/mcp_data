@@ -1,6 +1,6 @@
 """Create and seed a small example SQLite database.
 
-Run via the ``db-mcp-seed`` console script (or ``python -m mcp_sqlite.data.seed``)
+Run via the ``db-mcp-seed`` console script (or ``python -m mcp_data.data.seed``)
 so the server has something to query out of the box. Re-running is idempotent:
 the existing tables are dropped and recreated.
 """
@@ -11,7 +11,7 @@ import argparse
 import sqlite3
 from pathlib import Path
 
-from mcp_sqlite.config import get_settings
+from mcp_data.config import get_settings
 
 CUSTOMERS = [
     (1, "Ada Lovelace", "ada@example.com", "UK"),

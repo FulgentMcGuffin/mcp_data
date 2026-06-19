@@ -21,7 +21,7 @@ from typing import Any
 
 import polars as pl
 
-from mcp_sqlite.backends.base import QueryError, is_read_only_sql
+from mcp_data.backends.base import QueryError, is_read_only_sql
 
 
 def validated_sql(sql: str) -> str:

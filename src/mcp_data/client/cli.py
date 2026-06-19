@@ -18,9 +18,9 @@ from typing import Any
 
 import polars as pl
 
-from mcp_sqlite.client.planner import HELP_TEXT, Planner, RuleBasedPlanner, ToolCall
-from mcp_sqlite.client.session import DBClient
-from mcp_sqlite.config import get_settings
+from mcp_data.client.planner import HELP_TEXT, Planner, RuleBasedPlanner, ToolCall
+from mcp_data.client.session import DBClient
+from mcp_data.config import get_settings
 
 
 def _ensure_utf8_stdout() -> None:

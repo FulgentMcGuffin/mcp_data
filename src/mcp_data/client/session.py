@@ -18,7 +18,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
 
-from mcp_sqlite.config import Settings, get_settings
+from mcp_data.config import Settings, get_settings
 
 
 class DBClient:
@@ -47,7 +47,7 @@ class DBClient:
             env["MCP_DB_PATH"] = str(self._settings.db_path)
             params = StdioServerParameters(
                 command=sys.executable,
-                args=["-m", "mcp_sqlite.server"],
+                args=["-m", "mcp_data.server"],
                 env=env,
             )
             read, write = await self._stack.enter_async_context(

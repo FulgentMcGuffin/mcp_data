@@ -12,7 +12,7 @@ from pathlib import Path
 
 import polars as pl
 
-from mcp_sqlite.backends.base import (
+from mcp_data.backends.base import (
     ColumnInfo,
     DataBackend,
     QueryError,

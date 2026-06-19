@@ -5,15 +5,15 @@
 never depend on a specific storage engine.
 """
 
-from mcp_sqlite.backends.base import (
+from mcp_data.backends.base import (
     ColumnInfo,
     DataBackend,
     QueryError,
     TableSchema,
     is_read_only_sql,
 )
-from mcp_sqlite.backends.sqlite_backend import SQLiteBackend
-from mcp_sqlite.config import Settings
+from mcp_data.backends.sqlite_backend import SQLiteBackend
+from mcp_data.config import Settings
 
 __all__ = [
     "ColumnInfo",

@@ -7,8 +7,8 @@ from typing import Any
 
 from hamilton import driver
 
-from mcp_sqlite.backends.base import DataBackend
-from mcp_sqlite.pipeline import dataflow
+from mcp_data.backends.base import DataBackend
+from mcp_data.pipeline import dataflow
 
 
 @lru_cache(maxsize=1)

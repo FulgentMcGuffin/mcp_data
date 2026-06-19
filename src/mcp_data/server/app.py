@@ -14,10 +14,10 @@ from typing import Any
 from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
 
-from mcp_sqlite.backends import QueryError, create_backend
-from mcp_sqlite.backends.base import DataBackend
-from mcp_sqlite.config import Settings, get_settings
-from mcp_sqlite.pipeline import run_sql_pipeline
+from mcp_data.backends import QueryError, create_backend
+from mcp_data.backends.base import DataBackend
+from mcp_data.config import Settings, get_settings
+from mcp_data.pipeline import run_sql_pipeline
 
 
 def _register_tools(mcp: FastMCP, backend: DataBackend) -> None:
