@@ -26,7 +26,7 @@ class DBClient:
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
-        self._stack = AsyncExitStack()
+        self._stack = AsyncExitStack[bool | None]()
         self._session: ClientSession | None = None
 
     @property
