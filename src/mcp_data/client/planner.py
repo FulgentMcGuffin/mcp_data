@@ -42,6 +42,14 @@ class RuleBasedPlanner(Planner):
     """Deterministic command parser (no LLM required)."""
 
     def plan(self, query: str, available_tools: list[str]) -> list[ToolCall]:
+        calls = self._parse(query)
+        # Only emit calls for tools the server actually exposes. This keeps the
+        # Planner contract honest (callers can trust every returned call is
+        # runnable) and guards future planners (e.g. an LLM-driven one) from
+        # inventing tool names. The CLI still reports availability per call.
+        return [call for call in calls if call.name in available_tools]
+
+    def _parse(self, query: str) -> list[ToolCall]:
         text = query.strip()
         lowered = text.lower()
 
