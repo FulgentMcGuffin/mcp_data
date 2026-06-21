@@ -5,11 +5,15 @@ description = "MCP_DATA: generic MCP server and client for querying databases (S
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "boto3>=1.43.34",
+    "dotenv>=0.9.9",
     "fastapi>=0.137.2",
     "httpx>=0.28.1",
+    "imageio>=2.37.3",
     "mcp>=1.28.0",
     "numpy>=2.4.6",
     "pandas>=3.0.3",
+    "pillow>=12.2.0",
     "plotnine>=0.15.7",
     "polars>=1.41.2",
     "pyarrow>=24.0.0",
