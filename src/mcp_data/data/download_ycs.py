@@ -117,12 +117,12 @@ def main(date: str) -> None:
     else:
         print("Downloaded %d spot fx rates files for date: %s", fx_count, date)
 
-def friday_n_weeks_away(d: date, n: int = -1) -> date:
+def last_n_fridays(d: date, n: int = 0) -> date:
     # Find the Friday of the week containing d, then go back 7 days.
     # Python: Monday=0 ... Sunday=6, Friday=4
     days_since_friday = (d.weekday() - 4) % 7
-    friday_this_week = d - timedelta(days=days_since_friday)
-    return friday_this_week + timedelta(days=7*n)
+    last_friday = d - timedelta(days=days_since_friday)
+    return last_friday + timedelta(days=7*n)
 
 if __name__ == "__main__":
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     # parser.add_argument("--date", type=str, required=True)
     # args = parser.parse_args()
     # main(date="2026-05-22")
-    last_friday = friday_n_weeks_away(date.today(), -1)
+    last_friday = last_n_fridays(date.today(), 0)
     download_s3_prefix(
         bucket=os.getenv("AUGUR_BUCKET_NAME","synthera-sim-engine-data"),
         prefix=f"augur/{last_friday.strftime('%Y-%m-%d')}/transformed/",

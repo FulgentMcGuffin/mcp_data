@@ -386,13 +386,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--load-from-files",
         action="store_true",
-        default=False,
+        default=True,
         help="Populate SQLite from parquet directories (zero rates, par, spot FX).",
     )
     parser.add_argument(
         "--create-corr-files",
         action="store_true",
-        default=False,
+        default=True,
         help="Compute correlation matrices and write melted pickle files to DATA_DIR.",
     )
     parser.add_argument(
@@ -405,6 +405,7 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
+
     args = parse_args()
     load_from_files = args.load_from_files
     create_corr_files = args.create_corr_files
@@ -468,7 +469,6 @@ if __name__ == "__main__":
                     for term, df_pl in corr_matrices.items()
                 ]
                 df_pl_all.append(pl.concat(dfs_pl))
-                            
 
             dcorr_matrices = None
             melted_dcorr_file = f"{DEFAULT_CORR_DIR}/dcorr_dfs_melted_{input_df_name}_{starting_year:04d}{starting_month:02d}{starting_dayOfMonth:02d}_{max_date_str}_W{correlation_window_size}.pkl"
