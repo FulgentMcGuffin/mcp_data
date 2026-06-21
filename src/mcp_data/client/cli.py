@@ -18,7 +18,7 @@ from typing import Any
 
 import polars as pl
 
-from mcp_data.client.planner import HELP_TEXT, Planner, RuleBasedPlanner, ToolCall
+from mcp_data.client.planner import HELP_TEXT, LLMPlanner, Planner, RuleBasedPlanner, ToolCall
 from mcp_data.client.session import DBClient
 from mcp_data.config import get_settings
 
@@ -94,9 +94,9 @@ async def _interactive(client: DBClient, planner: Planner) -> None:
         await _run_calls(client, calls)
 
 
-async def _amain(one_shot: str | None) -> None:
+async def _amain(one_shot: str | None, use_llm: bool) -> None:
     settings = get_settings()
-    planner = RuleBasedPlanner()
+    planner: Planner = LLMPlanner() if use_llm else RuleBasedPlanner()
     async with DBClient(settings) as client:
         if one_shot:
             calls = planner.plan(one_shot, await client.list_tools())
@@ -117,8 +117,17 @@ def main() -> None:
         default=None,
         help="Optional one-shot query (e.g. \"sql: select * from customers\").",
     )
+    parser.add_argument(
+        "--llm",
+        action="store_true",
+        default=False,
+        help=(
+            "Use the LLM planner (Claude claude-sonnet-4-5 via LangChain) instead of the "
+            "rule-based parser. Requires ANTHROPIC_API_KEY to be set."
+        ),
+    )
     args = parser.parse_args()
-    asyncio.run(_amain(args.query))
+    asyncio.run(_amain(args.query, use_llm=args.llm))
 
 
 if __name__ == "__main__":
