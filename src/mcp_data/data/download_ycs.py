@@ -5,12 +5,12 @@ Fetch all Augur data from AWS S3 and place it in the local directory (env variab
 
 import os
 from pathlib import Path
+from datetime import date, timedelta, datetime
 import boto3
 from dotenv import load_dotenv
 from botocore.exceptions import ClientError, NoCredentialsError
 from botocore.client import BaseClient
 import argparse
-from datetime import datetime, date, timedelta
 # import logging
 
 # logging.basicConfig(level=logging.INFO)
@@ -117,12 +117,12 @@ def main(date: str) -> None:
     else:
         print("Downloaded %d spot fx rates files for date: %s", fx_count, date)
 
-def friday_n_weeks_away(d: datetime.date, n: int = -1) -> datetime.date:
+def friday_n_weeks_away(d: date, n: int = -1) -> date:
     # Find the Friday of the week containing d, then go back 7 days.
     # Python: Monday=0 ... Sunday=6, Friday=4
     days_since_friday = (d.weekday() - 4) % 7
-    friday_this_week = d - datetime.timedelta(days=days_since_friday)
-    return friday_this_week + datetime.timedelta(days=7*n)
+    friday_this_week = d - timedelta(days=days_since_friday)
+    return friday_this_week + timedelta(days=7*n)
 
 if __name__ == "__main__":
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
