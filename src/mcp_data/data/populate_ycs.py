@@ -9,27 +9,29 @@ from pathlib import Path
 import pickle
 from typing import cast
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CODE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, CODE_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, Path(__file__).resolve().parents[0])
 
 # from setup_analysis import load_parquets_from_dir, get_corr_matrix
 # from data_utils.sqlite_source import SQLiteSource
 
 import numpy as np
-from numpy.lib.stride_tricks import sliding_window_view
 import pandas as pd
 import asyncio
-from tqdm import tqdm
-import pickle
-import imageio.v3 as iio
-from PIL import Image
 import dcor
+import pickle
+from tqdm import tqdm
+from numpy.lib.stride_tricks import sliding_window_view
 from pathlib import Path
-# from plotnine import *
-# from data_utils.sqlite_source import SQLiteSource
+from PIL import Image
+import imageio.v3 as iio
+
+from plotnine import *
+
+from mcp_data.data.data_source import SQLiteSource
 
 
 def load_parquets_from_dir(directory: str) -> pl.DataFrame:
@@ -351,61 +353,8 @@ def get_corr_matrix( input_df: pl.DataFrame,
                 else:
                     raise ValueError(f"Invalid type: {type(corr_matrices)}")                
     return corr_matrices
-
-
     
-if __name__ == "__main__":
-    DB_PATH = SQLiteSource.get_full_db_path("input_data")    
-    populate_sqlite_from_files = False
-
-    if populate_sqlite_from_files:
-        populate_sqlite_from_files(DB_PATH)
-        
-    # coverage = get_coverage(DB_PATH)
-    # coverage_date_plot = get_coverage_plot(coverage, is_date_coverage=True)
-    # coverage_days_plot = get_coverage_plot(coverage, is_date_coverage=False)
-    # coverage_date_plot.show()
-    # coverage_days_plot.show()            
-            
-    with SQLiteSource(DB_PATH) as db:
-        zero_rates = pl.DataFrame(db.execute("SELECT * FROM zero_rates")).with_columns(
-            pl.col("date").str.to_date()
-        )
-        # par_rates = pl.DataFrame(db.execute("SELECT * FROM par_rates")).with_columns(
-        #     pl.col("date").str.to_date()
-        # )                
-        # spotfx = pl.DataFrame(db.execute("SELECT * FROM spotfx")).with_columns(
-        #     pl.col("date").str.to_date()
-        # )
-
-    starting_year = 2005
-    starting_month = 1
-    starting_dayOfMonth = 1
-    correlation_window_size = 65
-
-    input_df = zero_rates.filter(
-        pl.col("date")
-        >= pl.date(starting_year, starting_month, starting_dayOfMonth)
-    )
-
-    corr_matrices = get_corr_matrix(input_df, window=correlation_window_size, tenors=["Y1p0", "Y2p0", "Y5p0", "Y10p0", "Y30p0"], use_dcor=False, is_polars=True)    
-    melted_corr_file = f"{os.getenv('DATA_DIR')}/corr_dfs_melted_zero_rates_{starting_year:04d}{starting_month:02d}{starting_dayOfMonth:02d}_W{correlation_window_size}.pkl"
-    if not os.path.exists(melted_corr_file):
-        with open(melted_corr_file, "wb") as f:
-            pickle.dump(corr_matrices, f)
-
-    dcorr_matrices = get_corr_matrix(input_df, window=correlation_window_size, tenors=["Y1p0", "Y2p0", "Y5p0", "Y10p0", "Y30p0"], use_dcor=True, is_polars=True)    
-    melted_dcorr_file = f"{os.getenv('DATA_DIR')}/dcorr_dfs_melted_zero_rates_{starting_year:04d}{starting_month:02d}{starting_dayOfMonth:02d}_W{correlation_window_size}.pkl"
-    if not os.path.exists(melted_dcorr_file):
-        with open(melted_dcorr_file, "wb") as f:
-            pickle.dump(dcorr_matrices, f)
-
-    pass
     
-
-
-
-
 def populate_sqlite_from_files(db_path: str|None = None):
     with SQLiteSource(db_path) as db:
         # Load zero rates to SQLite
@@ -475,15 +424,14 @@ if __name__ == "__main__":
             pl.col("date").str.to_date()
         )
 
-    starting_year = 2005
+    starting_year = 2007
     starting_month = 1
     starting_dayOfMonth = 1
     
-    tenors = ["Y000p5", "Y001p0", "Y002p0", "Y005p0", "Y010p0", "Y030p0"]
+    tenors = ["Y000p5", "Y001p0", "Y002p0", "Y003p0", "Y004p0", "Y005p0", "Y007p0","Y010p0", "Y012p0", "Y015p0", "Y020p0","Y025p0", "Y030p0"]
     correlation_window_sizes = [20, 40, 60, 90]
 
-    DEFAULT_CORR_DIR =  os.getenv("CORR_DIR", "/teamspace/s3_folders/staging_files/corr/")
-
+    DEFAULT_CORR_DIR =  f"{os.getenv('DERIVED_LOCAL_DATA_PATH')}/{os.getenv('DERIVED_CORR_FOLDER')}"
 
     df_pl_all = []
     for input_df in [(zero_rates, "zero_rates"), (par_rates, "par_rates")]:
