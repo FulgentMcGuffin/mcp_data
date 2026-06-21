@@ -22,17 +22,17 @@ client (CLI REPL) -> Planner -> MCP ClientSession --(stdio | HTTP)--> FastMCP se
                                                           Hamilton dataflow (validate
                                                           -> execute -> polars -> JSON)
                                                                          |
-                                                          DataBackend (SQLiteBackend now,
+                                                          DataBackend (SQLiteSource now,
                                                           RedisBackend later)
 ```
 
-Layout (`src/mcp_sqlite/`):
+Layout (`src/mcp_data/`):
 
 | Module | Responsibility |
 | --- | --- |
 | `config.py` | Env-driven `Settings` (transport, db path, host, port) |
-| `backends/base.py` | `DataBackend` protocol + `is_read_only_sql` guard |
-| `backends/sqlite_backend.py` | Read-only SQLite backend producing polars frames |
+| `backends/base.py` | `DataBackend` (read) + `DataSink` (write) contracts + `is_read_only_sql` guard |
+| `backends/sqlite_backend.py` | `SQLiteSource`: unified read/write SQLite store (`read_only` flag) |
 | `backends/__init__.py` | `create_backend()` factory (future backend switch) |
 | `data/seed.py` | Creates/seeds the example database |
 | `pipeline/dataflow.py` | Hamilton nodes: validate -> execute -> frame -> serialize |

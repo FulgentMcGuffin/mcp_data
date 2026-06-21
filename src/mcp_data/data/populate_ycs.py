@@ -31,7 +31,7 @@ import imageio.v3 as iio
 
 from plotnine import *
 
-from mcp_data.data.data_source import SQLiteSource
+from mcp_data.backends import SQLiteSource
 
 
 def load_parquets_from_dir(directory: str) -> pl.DataFrame:
@@ -68,7 +68,7 @@ def load_parquets_from_dir(directory: str) -> pl.DataFrame:
 
 
 def populate_sqlite_from_files(db_path: str):
-    with SQLiteSource(db_path) as db:
+    with SQLiteSource(db_path, read_only=False) as db:
         # Load zero rates to SQLite
         zero_rates_dir = os.getenv("ZERORATE_CURVES_DIR")
         if zero_rates_dir is None:
@@ -90,7 +90,7 @@ def populate_sqlite_from_files(db_path: str):
         db.create_table_from_polars("spotfx", load_parquets_from_dir(spotfx_dir), True)
         
 def get_coverage(db_path: str):
-    with SQLiteSource(db_path) as db:
+    with SQLiteSource(db_path, read_only=False) as db:
         coverage = (
             pl.concat(
                 [
@@ -356,7 +356,7 @@ def get_corr_matrix( input_df: pl.DataFrame,
     
     
 def populate_sqlite_from_files(db_path: str|None = None):
-    with SQLiteSource(db_path) as db:
+    with SQLiteSource(db_path, read_only=False) as db:
         # Load zero rates to SQLite
         zero_rates_dir = os.getenv("ZERORATE_CURVES_DIR", f'{os.getenv("AUGUR_DIR","/teamspace/s3_folders/staging_files/augur/")}zero_coupon')
         if zero_rates_dir is None:
@@ -413,7 +413,7 @@ if __name__ == "__main__":
     if load_from_files:
         populate_sqlite_from_files()
         pass
-    with SQLiteSource() as db:
+    with SQLiteSource(read_only=False) as db:
         zero_rates = pl.DataFrame(db.execute("SELECT * FROM zero_rates")).with_columns(
             pl.col("date").str.to_date()
         )
@@ -500,7 +500,7 @@ if __name__ == "__main__":
     if len(df_pl_all) > 0:
         df_pl_all = pl.concat(df_pl_all)
         df_pl_all = df_pl_all.rechunk()
-        with SQLiteSource() as db:
+        with SQLiteSource(read_only=False) as db:
             db.create_table_from_polars("window_corr", df_pl_all, True)
         print(f"Saved {df_pl_all.shape[0]} rows to SQLite in table window_corr")
         # df_pl_all.write_parquet(f"{os.getenv('DATA_DIR')}/ALL_corr_dfs_melted_{starting_year:04d}{starting_month:02d}{starting_dayOfMonth:02d}.parquet")

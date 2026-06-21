@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from mcp_sqlite.backends import SQLiteBackend
-from mcp_sqlite.data.seed import seed_database
+from mcp_data.backends import SQLiteSource
+from mcp_data.data.seed import seed_database
 
 
 @pytest.fixture()
@@ -16,7 +16,7 @@ def seeded_db(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
-def backend(seeded_db: Path) -> SQLiteBackend:
-    be = SQLiteBackend(seeded_db)
+def backend(seeded_db: Path) -> SQLiteSource:
+    be = SQLiteSource(seeded_db)
     yield be
     be.close()
