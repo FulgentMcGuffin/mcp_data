@@ -40,8 +40,8 @@ Layout (`src/mcp_data/`):
 | `server/app.py` | FastMCP tools/resource + FastAPI HTTP host |
 | `server/__main__.py` | Entrypoint dispatching on transport |
 | `client/session.py` | Transport-agnostic `DBClient` (stdio + HTTP) |
-| `client/planner.py` | `Planner` protocol + `RuleBasedPlanner` (LLM drop-in later) |
-| `client/cli.py` | Interactive / one-shot CLI |
+| `client/planner.py` | `Planner` protocol + `RuleBasedPlanner` + `LLMPlanner` (Claude via LangChain) |
+| `client/cli.py` | Interactive / one-shot CLI (`--llm` flag selects `LLMPlanner`) |
 
 ## Setup
 
@@ -59,6 +59,9 @@ uv run db-mcp-seed        # create the example SQLite database
 | `MCP_HOST` | `127.0.0.1` | HTTP host |
 | `MCP_PORT` | `8000` | HTTP port |
 | `MCP_SERVER_NAME` | `db-mcp` | Server display name |
+| `ANTHROPIC_API_KEY` | *(required for `--llm`)* | Anthropic API key for the LLM planner |
+
+Variables are loaded from a `.env` file at the project root (if present) via `python-dotenv`. OS environment variables take precedence over `.env` values.
 
 ## Running
 
@@ -90,12 +93,50 @@ Health check: `GET http://127.0.0.1:8000/healthz`.
 
 ## CLI commands
 
+### Rule-based planner (default)
+
+Fixed keyword syntax, no API key required:
+
 ```
 tables                 list tables
 schema <table>         show a table's schema
 sql: <query>           run a read-only SQL query
 help                   show help
 quit / exit            leave
+```
+
+```bash
+# one-shot
+uv run db-mcp-client "schema customers"
+uv run db-mcp-client "sql: select * from customers limit 5"
+
+# interactive REPL
+uv run db-mcp-client
+```
+
+### LLM planner (`--llm`)
+
+Free-form natural language translated to tool calls by **Claude claude-sonnet-4-5** via
+**LangChain** (`langchain-anthropic`). Requires `ANTHROPIC_API_KEY`.
+
+```bash
+# one-shot natural language questions
+uv run db-mcp-client --llm "what tables are in this database?"
+uv run db-mcp-client --llm "show me the schema of the customers table"
+uv run db-mcp-client --llm "how many customers are there per country?"
+uv run db-mcp-client --llm "list the top 3 orders by amount"
+
+# interactive REPL with LLM
+uv run db-mcp-client --llm
+```
+
+The LLM model is swappable — pass any LangChain chat model directly in code:
+
+```python
+from langchain_openai import ChatOpenAI
+from mcp_data.client.planner import LLMPlanner
+
+planner = LLMPlanner(model=ChatOpenAI(model="gpt-4o"))
 ```
 
 ## Safety
@@ -110,12 +151,13 @@ opened read-only.
 uv run pytest -q
 ```
 
-## Roadmap (designed for, not yet built)
+## Roadmap
 
+- ✅ **LLM natural-language planner**: `LLMPlanner` (Claude claude-sonnet-4-5 via LangChain)
+  translates free-form questions into tool calls. Toggle with `--llm`; swap the model
+  by passing any LangChain chat model to `LLMPlanner(model=...)`.
 - **Redis cache backend**: add `RedisBackend(DataBackend)` and select it in
   `create_backend()`; tools, pipeline and client are unchanged. A cache node can slot
   into the Hamilton dataflow between `validated_sql` and `result_frame`.
-- **LLM natural-language-to-SQL**: implement `LLMPlanner(Planner)` in the client; the
-  CLI and session layer stay the same.
 - **Remote + OAuth**: add auth middleware/routes to the FastAPI host in
   `server/app.py`; the HTTP client gains an OAuth provider.
