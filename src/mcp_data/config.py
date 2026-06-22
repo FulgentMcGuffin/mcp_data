@@ -19,6 +19,7 @@ Transport = Literal["stdio", "http"]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "example.db"
+DEFAULT_SEMANTICS_DIR = PROJECT_ROOT / "semantics"
 
 # Path component the Streamable HTTP transport is mounted under.
 MCP_PATH = "/mcp"
@@ -47,6 +48,8 @@ class Settings:
     host: str = "127.0.0.1"
     port: int = 8000
     server_name: str = "db-mcp"
+    dataset: str = DEFAULT_DB_PATH.stem
+    semantics_dir: Path = DEFAULT_SEMANTICS_DIR
 
     @property
     def http_url(self) -> str:
@@ -55,12 +58,20 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        db_path = Path(os.environ.get("MCP_DB_PATH", str(DEFAULT_DB_PATH)))
+        # The dataset name keys the semantic profile; defaults to the DB file
+        # stem (e.g. input_data.db -> "input_data"), overridable via MCP_DATASET.
+        dataset = os.environ.get("MCP_DATASET", db_path.stem)
         return cls(
             transport=_env_transport(),
-            db_path=Path(os.environ.get("MCP_DB_PATH", str(DEFAULT_DB_PATH))),
+            db_path=db_path,
             host=os.environ.get("MCP_HOST", "127.0.0.1"),
             port=int(os.environ.get("MCP_PORT", "8000")),
             server_name=os.environ.get("MCP_SERVER_NAME", "db-mcp"),
+            dataset=dataset,
+            semantics_dir=Path(
+                os.environ.get("MCP_SEMANTICS_DIR", str(DEFAULT_SEMANTICS_DIR))
+            ),
         )
 
 

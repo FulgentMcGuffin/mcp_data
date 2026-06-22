@@ -1,0 +1,114 @@
+# Semantic profile for the `input_data` dataset (C:/data/sqlitedb/input_data.db).
+#
+# This is the business-logic layer the LLM uses to translate domain questions
+# into SQL. Tenor columns and the source/date columns are confirmed from
+# src/mcp_data/data/populate_ycs.py. The country/source codes below are a
+# starting point -- verify them against the actual `source` values in the DB
+# (e.g. run: SELECT DISTINCT source FROM zero_rates) and extend as needed.
+
+dataset: input_data
+backend: sqlite
+description: >
+  Yield-curve and FX time series. zero_rates and par_rates hold one row per
+  (source, date); the tenor columns (Y...) hold the rate for that maturity.
+  spotfx holds spot FX rates. window_corr holds rolling correlations.
+
+vocabulary:
+  # Values stored in the `source` column. Map the country name to its code.
+  countries:
+    Italy: ITA
+    Germany: DEU
+    France: FRA
+    Spain: ESP
+    United States: USA
+    United Kingdom: GBR
+  # Natural-language tenor -> tenor column name. Naming convention:
+  # "Y" + zero-padded years, "p" replaces the decimal point
+  # (e.g. 0.5Y -> Y000p5, 5Y -> Y005p0, 10Y -> Y010p0, 30Y -> Y030p0).
+  tenors:
+    "6M": Y000p5
+    "1Y": Y001p0
+    "2Y": Y002p0
+    "3Y": Y003p0
+    "4Y": Y004p0
+    "5Y": Y005p0
+    "7Y": Y007p0
+    "10Y": Y010p0
+    "12Y": Y012p0
+    "15Y": Y015p0
+    "20Y": Y020p0
+    "25Y": Y025p0
+    "30Y": Y030p0
+
+conventions:
+  date: >
+    The `date` column is TEXT stored as 'YYYY-MM-DD'. Filter ranges with
+    date >= '<start>' AND date <= '<end>'.
+  tenor_columns: >
+    Tenor columns follow the pattern Y<years:03d>p<tenths> (point replaced by 'p').
+    To compute a spread between two tenors, subtract the two tenor columns.
+
+tables:
+  zero_rates:
+    description: >
+      Zero-coupon (spot) rates per source and date. One row per (source, date);
+      each tenor column holds the zero rate for that maturity.
+    columns:
+      date: {type: TEXT, description: "Observation date (YYYY-MM-DD)."}
+      source: {type: TEXT, description: "Curve/country code, e.g. ITA=Italy, DEU=Germany."}
+      Y000p5: {type: REAL, description: "6-month (0.5Y) zero rate."}
+      Y001p0: {type: REAL, description: "1-year zero rate."}
+      Y002p0: {type: REAL, description: "2-year zero rate."}
+      Y003p0: {type: REAL, description: "3-year zero rate."}
+      Y004p0: {type: REAL, description: "4-year zero rate."}
+      Y005p0: {type: REAL, description: "5-year zero rate."}
+      Y007p0: {type: REAL, description: "7-year zero rate."}
+      Y010p0: {type: REAL, description: "10-year zero rate."}
+      Y012p0: {type: REAL, description: "12-year zero rate."}
+      Y015p0: {type: REAL, description: "15-year zero rate."}
+      Y020p0: {type: REAL, description: "20-year zero rate."}
+      Y025p0: {type: REAL, description: "25-year zero rate."}
+      Y030p0: {type: REAL, description: "30-year zero rate."}
+  par_rates:
+    description: >
+      Par rates per source and date, same tenor-column layout as zero_rates.
+    columns:
+      date: {type: TEXT, description: "Observation date (YYYY-MM-DD)."}
+      source: {type: TEXT, description: "Curve/country code, e.g. ITA=Italy."}
+      Y005p0: {type: REAL, description: "5-year par rate."}
+      Y010p0: {type: REAL, description: "10-year par rate."}
+  spotfx:
+    description: Spot FX rates per source and date.
+    columns:
+      date: {type: TEXT, description: "Observation date (YYYY-MM-DD)."}
+      source: {type: TEXT, description: "FX pair/source identifier (e.g. fx)."}
+  window_corr:
+    description: >
+      Rolling-window correlations between sources/observables.
+    columns:
+      observable: {type: TEXT, description: "The observable/term the correlation is computed for."}
+      source1: {type: TEXT, description: "First source in the correlation pair."}
+      source2: {type: TEXT, description: "Second source in the correlation pair."}
+      window_size: {type: INTEGER, description: "Rolling window size in observations (e.g. 20, 40, 60, 90)."}
+      corr_type: {type: TEXT, description: "Correlation type: 'spearman' or 'dcorr'."}
+
+examples:
+  - q: "What is the highest absolute difference in zero rate between the 5Y and 10Y for Italy between 2010 and 2015?"
+    sql: >
+      SELECT MAX(ABS(Y010p0 - Y005p0)) AS max_abs_diff
+      FROM zero_rates
+      WHERE source = 'ITA'
+        AND date >= '2010-01-01' AND date <= '2015-12-31'
+  - q: "Average 10Y zero rate for Germany in 2012"
+    sql: >
+      SELECT AVG(Y010p0) AS avg_10y
+      FROM zero_rates
+      WHERE source = 'DEU'
+        AND date >= '2012-01-01' AND date <= '2012-12-31'
+  - q: "Which date had the steepest 2s10s slope (10Y minus 2Y) for Italy?"
+    sql: >
+      SELECT date, (Y010p0 - Y002p0) AS slope_2s10s
+      FROM zero_rates
+      WHERE source = 'ITA'
+      ORDER BY slope_2s10s DESC
+      LIMIT 1

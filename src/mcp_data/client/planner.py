@@ -153,7 +153,7 @@ class LLMPlanner(Planner):
 
     DEFAULT_MODEL = "claude-sonnet-4-5"
 
-    def __init__(self, model=None) -> None:
+    def __init__(self, model=None, profile_prompt: str | None = None) -> None:
         if model is None:
             # Imported here so the rest of the module loads without the SDK.
             from langchain_anthropic import ChatAnthropic
@@ -170,6 +170,20 @@ class LLMPlanner(Planner):
                 temperature=0,
             )
         self._model = model
+        self._profile_prompt = profile_prompt
+
+    @property
+    def system_prompt(self) -> str:
+        """The system prompt, with the dataset semantic profile prepended."""
+        if self._profile_prompt:
+            return (
+                f"{self._profile_prompt}\n\n"
+                "Use the dataset description above (table/column meaning, the "
+                "vocabulary mapping business terms to stored values/columns, and "
+                "the example queries) to build correct SQL.\n\n"
+                f"{_SYSTEM_PROMPT}"
+            )
+        return _SYSTEM_PROMPT
 
     def plan(self, query: str, available_tools: list[str]) -> list[ToolCall]:
         # Restrict to tools the server actually exposes.
@@ -182,7 +196,7 @@ class LLMPlanner(Planner):
         bound = self._model.bind_tools(lc_tools, tool_choice="any")
         response = bound.invoke(
             [
-                SystemMessage(content=_SYSTEM_PROMPT),
+                SystemMessage(content=self.system_prompt),
                 HumanMessage(content=query),
             ]
         )

@@ -68,6 +68,19 @@ class DBClient:
         result = await self.session.list_tools()
         return [tool.name for tool in result.tools]
 
+    async def describe_dataset(self) -> dict[str, Any]:
+        """Fetch the dataset semantic profile from the server.
+
+        Returns a dict with ``profile`` (the structured profile),
+        ``prompt`` (a rendered LLM-friendly text block) and
+        ``has_curated_profile``. Returns an empty dict if the server does not
+        expose the ``describe_dataset`` tool.
+        """
+        if "describe_dataset" not in await self.list_tools():
+            return {}
+        result = await self.call_tool("describe_dataset", {})
+        return result if isinstance(result, dict) else {}
+
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
         """Call a tool and return its structured result.
 

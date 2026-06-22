@@ -14,9 +14,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
+
+if TYPE_CHECKING:
+    from mcp_data.client.agent import SQLAgent
 
 from mcp_data.client.planner import HELP_TEXT, LLMPlanner, Planner, RuleBasedPlanner, ToolCall
 from mcp_data.client.session import DBClient
@@ -94,10 +97,51 @@ async def _interactive(client: DBClient, planner: Planner) -> None:
         await _run_calls(client, calls)
 
 
-async def _amain(one_shot: str | None, use_llm: bool) -> None:
+async def _interactive_agent(agent: "SQLAgent") -> None:
+    print("Agentic LLM mode. Ask a question in natural language; type 'quit' to leave.")
+    print()
+    loop = asyncio.get_event_loop()
+    while True:
+        try:
+            query = await loop.run_in_executor(None, input, "db> ")
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        query = query.strip()
+        if not query:
+            continue
+        if query.lower() in ("quit", "exit"):
+            break
+        result = await agent.run(query)
+        print(result.answer or "(no answer)")
+
+
+async def _amain(one_shot: str | None, mode: str) -> None:
     settings = get_settings()
-    planner: Planner = LLMPlanner() if use_llm else RuleBasedPlanner()
     async with DBClient(settings) as client:
+        # Fetch the dataset semantic profile once so both LLM modes get domain
+        # context (table/column meaning, vocabulary, examples).
+        profile_prompt: str | None = None
+        if mode in ("agent", "single_shot"):
+            description = await client.describe_dataset()
+            profile_prompt = description.get("prompt") or None
+
+        if mode == "agent":
+            from mcp_data.client.agent import SQLAgent
+
+            agent = SQLAgent(client, profile_prompt=profile_prompt)
+            if one_shot:
+                result = await agent.run(one_shot)
+                print(result.answer or "(no answer)")
+            else:
+                await _interactive_agent(agent)
+            return
+
+        if mode == "single_shot":
+            planner: Planner = LLMPlanner(profile_prompt=profile_prompt)
+        else:
+            planner = RuleBasedPlanner()
+
         if one_shot:
             calls = planner.plan(one_shot, await client.list_tools())
             if not calls:
@@ -122,12 +166,31 @@ def main() -> None:
         action="store_true",
         default=False,
         help=(
-            "Use the LLM planner (Claude claude-sonnet-4-5 via LangChain) instead of the "
-            "rule-based parser. Requires ANTHROPIC_API_KEY to be set."
+            "Use the agentic LLM mode: a LangGraph ReAct agent (Claude "
+            "claude-sonnet-4-5 via LangChain) that introspects the schema, runs "
+            "SQL, and self-corrects over multiple steps. Requires "
+            "ANTHROPIC_API_KEY to be set."
+        ),
+    )
+    parser.add_argument(
+        "--llm-single-shot",
+        action="store_true",
+        default=False,
+        help=(
+            "Use the single-shot LLM planner instead of the agentic loop: the "
+            "model picks tool calls in one step. Requires ANTHROPIC_API_KEY."
         ),
     )
     args = parser.parse_args()
-    asyncio.run(_amain(args.query, use_llm=args.llm))
+    if args.llm and args.llm_single_shot:
+        parser.error("Use only one of --llm / --llm-single-shot.")
+    if args.llm:
+        mode = "agent"
+    elif args.llm_single_shot:
+        mode = "single_shot"
+    else:
+        mode = "rule"
+    asyncio.run(_amain(args.query, mode=mode))
 
 
 if __name__ == "__main__":

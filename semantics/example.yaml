@@ -1,0 +1,57 @@
+# Semantic profile for the seeded demo database (data/example.db), created by
+# `db-mcp-seed` (see src/mcp_data/data/seed.py). Used when MCP_DB_PATH points at
+# the example database (dataset name "example").
+
+dataset: example
+backend: sqlite
+description: >
+  Small demo database of customers and their orders, used for trying out the
+  natural-language query modes.
+
+vocabulary:
+  countries:
+    United Kingdom: UK
+    United States: US
+    Netherlands: NL
+
+conventions:
+  date: "The orders.created_at column is TEXT stored as 'YYYY-MM-DD'."
+
+tables:
+  customers:
+    description: One row per customer.
+    columns:
+      id: {type: INTEGER, description: "Primary key."}
+      name: {type: TEXT, description: "Full name of the customer."}
+      email: {type: TEXT, description: "Unique email address."}
+      country: {type: TEXT, description: "Country code, e.g. UK, US, NL."}
+  orders:
+    description: One row per order; references customers.id.
+    columns:
+      id: {type: INTEGER, description: "Primary key."}
+      customer_id: {type: INTEGER, description: "Foreign key to customers.id."}
+      product: {type: TEXT, description: "Product name."}
+      amount: {type: REAL, description: "Order amount (currency units)."}
+      created_at: {type: TEXT, description: "Order date (YYYY-MM-DD)."}
+
+examples:
+  - q: "How many customers are there per country?"
+    sql: >
+      SELECT country, COUNT(*) AS n
+      FROM customers
+      GROUP BY country
+      ORDER BY n DESC
+  - q: "What are the top 3 orders by amount?"
+    sql: >
+      SELECT product, amount
+      FROM orders
+      ORDER BY amount DESC
+      LIMIT 3
+  - q: "Total spend per customer for UK customers"
+    sql: >
+      SELECT c.name, SUM(o.amount) AS total_spend
+      FROM customers c
+      JOIN orders o ON o.customer_id = c.id
+      WHERE c.country = 'UK'
+      GROUP BY c.name
+      ORDER BY total_spend DESC
