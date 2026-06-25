@@ -1,7 +1,39 @@
 # mcp-data
 
 A **Model Context Protocol (MCP) server and client** for querying databases with natural
-language. SQLite is the first backend, hidden behind a generic `DataBackend` abstraction so
+language. Ask questions about your data in plain English and get SQL-backed answers.
+
+## Quick example
+
+Query your database using free-form natural language with the agentic LLM mode:
+
+```bash
+uv run db-mcp-client --llm "highest 5Y–10Y zero rate spread for Italy between 2010 and 2015?"
+uv run db-mcp-client --llm "COVID cases trend for Germany in Q2 2020?"
+uv run db-mcp-client --llm "correlation between Brazil and US interest rates?"
+```
+
+The agent introspects your schema, builds the SQL, runs it, observes the results, and
+self-corrects if needed — all while understanding domain vocabulary like country names
+and financial terminology from a per-dataset semantic profile.
+
+### Sample queries and results
+
+<div align="center">
+  <table>
+    <tr>
+      <td><img src="resource/png/italy_question1.png" width="300" alt="Italy zero rate query" /></td>
+      <td><img src="resource/png/covid_germany_question1.png" width="300" alt="COVID Germany query" /></td>
+      <td><img src="resource/png/brazil_us_corr_question1.png" width="300" alt="Brazil-US correlation query" /></td>
+    </tr>
+  </table>
+</div>
+
+---
+
+## Overview
+
+SQLite is the first backend, hidden behind a generic `DataBackend` abstraction so
 the storage layer can be swapped (e.g. a Redis cache) without touching the server tools or
 client. Transport is selectable between **stdio** and **Streamable HTTP** (hosted via
 FastAPI).
@@ -145,12 +177,18 @@ from mcp_data.client.session import DBClient  # use as a library
 | `MCP_SERVER_NAME` | `db-mcp` | Server display name reported to clients |
 | `MCP_DATASET` | *(db file stem)* | Dataset name that keys the semantic profile (`semantics/<dataset>.yaml`) |
 | `MCP_SEMANTICS_DIR` | `semantics/` | Directory holding semantic profile YAML files |
+| `MCP_TIMEOUT` | `40` | Request timeout in seconds (HTTP transport only) |
 | `ANTHROPIC_API_KEY` | *(required for `--llm` / `--llm-single-shot`)* | Anthropic API key |
 
 Variables are loaded from `.env` and `.secrets` files (if they exist) at the project root
 via `python-dotenv`. Both files are treated as extensions of each other: `.env` is loaded
 first, then `.secrets`, so `.secrets` can override `.env` if needed. OS environment
 variables take precedence over both files.
+
+**Transport selection:** When using `--llm` or `--llm-single-shot` (agentic/LLM modes),
+the client automatically prefers Streamable HTTP transport over stdio for better stability
+during long-running LLM operations. To explicitly use stdio, set `MCP_TRANSPORT=stdio`
+before running the client.
 
 ---
 

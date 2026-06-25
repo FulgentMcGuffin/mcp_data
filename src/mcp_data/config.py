@@ -52,6 +52,7 @@ class Settings:
     server_name: str = "db-mcp"
     dataset: str = DEFAULT_DB_PATH.stem
     semantics_dir: Path = DEFAULT_SEMANTICS_DIR
+    timeout: float = 40.0
 
     @property
     def http_url(self) -> str:
@@ -74,6 +75,7 @@ class Settings:
             semantics_dir=Path(
                 os.environ.get("MCP_SEMANTICS_DIR", str(DEFAULT_SEMANTICS_DIR))
             ),
+            timeout=float(os.environ.get("MCP_TIMEOUT", "40")),
         )
 
 

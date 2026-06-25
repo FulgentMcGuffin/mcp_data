@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import os
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -118,6 +119,22 @@ async def _interactive_agent(agent: "SQLAgent") -> None:
 
 async def _amain(one_shot: str | None, mode: str) -> None:
     settings = get_settings()
+    # For LLM modes, prefer HTTP transport (more stable for long-running operations
+    # like agent reasoning loops). Force HTTP unless explicitly overridden.
+    if mode in ("agent", "single_shot") and settings.transport == "stdio":
+        # User hasn't explicitly set MCP_TRANSPORT, so override to HTTP for reliability.
+        if os.environ.get("MCP_TRANSPORT", None) is None:
+            settings = settings.__class__(
+                transport="http",
+                db_path=settings.db_path,
+                host=settings.host,
+                port=settings.port,
+                server_name=settings.server_name,
+                dataset=settings.dataset,
+                semantics_dir=settings.semantics_dir,
+                timeout=settings.timeout,
+            )
+    
     async with DBClient(settings) as client:
         # Fetch the dataset semantic profile once so both LLM modes get domain
         # context (table/column meaning, vocabulary, examples).

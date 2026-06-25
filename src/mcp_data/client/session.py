@@ -38,7 +38,10 @@ class DBClient:
     async def __aenter__(self) -> "DBClient":
         if self._settings.transport == "http":
             read, write, _ = await self._stack.enter_async_context(
-                streamablehttp_client(self._settings.http_url)
+                streamablehttp_client(
+                    self._settings.http_url,
+                    timeout=self._settings.timeout,
+                )
             )
         else:
             # Spawn the server as a subprocess in stdio mode.
