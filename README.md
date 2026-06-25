@@ -9,8 +9,7 @@ Query your database using free-form natural language with the agentic LLM mode:
 
 ```bash
 uv run db-mcp-client --llm "highest 5Y–10Y zero rate spread for Italy between 2010 and 2015?"
-uv run db-mcp-client --llm "COVID cases trend for Germany in Q2 2020?"
-uv run db-mcp-client --llm "correlation between Brazil and US interest rates?"
+uv run db-mcp-client --llm "during covid, what was the highest 5s30s slope in Germany?"
 ```
 
 The agent introspects your schema, builds the SQL, runs it, observes the results, and
