@@ -153,6 +153,9 @@ async def _amain(one_shot: str | None, mode: str) -> None:
 
 
 def main() -> None:
+    from mcp_data.client._tracing import disable_langsmith_tracing
+
+    disable_langsmith_tracing()
     _ensure_utf8_stdout()
     parser = argparse.ArgumentParser(description="MCP database client.")
     parser.add_argument(

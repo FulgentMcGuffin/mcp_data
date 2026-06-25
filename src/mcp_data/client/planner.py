@@ -15,6 +15,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
+from mcp_data.client import _tracing  # noqa: F401 — disable LangSmith before LangChain
+
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool as lc_tool
 
