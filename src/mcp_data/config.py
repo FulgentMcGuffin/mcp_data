@@ -24,10 +24,12 @@ DEFAULT_SEMANTICS_DIR = PROJECT_ROOT / "semantics"
 # Path component the Streamable HTTP transport is mounted under.
 MCP_PATH = "/mcp"
 
-# Load variables from a .env file at the project root if it exists. Missing
-# files are ignored, and existing OS environment variables take precedence so
-# that explicit overrides keep working.
+# Load variables from .env and .secrets files at the project root if they exist.
+# Missing files are ignored. Both files are treated as extensions of each other,
+# with .secrets loaded second so it can override .env if needed (but OS environment
+# variables take precedence over both, so explicit overrides keep working).
 load_dotenv(PROJECT_ROOT / ".env", override=False)
+load_dotenv(PROJECT_ROOT / ".secrets", override=False)
 
 
 def _env_transport(default: Transport = "stdio") -> Transport:

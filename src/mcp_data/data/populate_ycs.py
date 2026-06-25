@@ -358,21 +358,24 @@ def get_corr_matrix( input_df: pl.DataFrame,
 def populate_sqlite_from_files(db_path: str|None = None):
     with SQLiteSource(db_path, read_only=False) as db:
         # Load zero rates to SQLite
-        zero_rates_dir = os.getenv("ZERORATE_CURVES_DIR", f'{os.getenv("AUGUR_DIR","/teamspace/s3_folders/staging_files/augur/")}zero_coupon')
+        LOCALDATA_PATH = os.getenv("LOCALDATA_PATH",None)
+        if LOCALDATA_PATH is None:
+            raise ValueError("LOCALDATA_PATH environment variable is not set")
+        zero_rates_dir = os.getenv("ZERORATE_CURVES_DIR", f'{LOCALDATA_PATH}/zero_coupon')
         if zero_rates_dir is None:
             raise ValueError("ZERORATE_CURVES_DIR environment variable is not set")
         db.create_table_from_polars(
             "zero_rates", load_parquets_from_dir(zero_rates_dir), True
         )
         # Load par rates to SQLite
-        par_rates_dir = os.getenv("PAR_CURVES_DIR", f'{os.getenv("AUGUR_DIR","/teamspace/s3_folders/staging_files/augur/")}par_curve')
+        par_rates_dir = os.getenv("PAR_CURVES_DIR", f'{LOCALDATA_PATH}/par_curve')
         if par_rates_dir is None:
             raise ValueError("PAR_CURVES_DIR environment variable is not set")
         db.create_table_from_polars(
             "par_rates", load_parquets_from_dir(par_rates_dir), True
         )
         # Load spot FX to SQLite
-        spotfx_dir = os.getenv("SPOTFX_DIR", f'{os.getenv("AUGUR_DIR","/teamspace/s3_folders/staging_files/augur/")}spot_fx_rates')
+        spotfx_dir = os.getenv("SPOTFX_DIR", f'{LOCALDATA_PATH}/spot_fx_rates')
         if spotfx_dir is None:
             raise ValueError("SPOTFX_DIR environment variable is not set")
         db.create_table_from_polars("spotfx", load_parquets_from_dir(spotfx_dir), True)

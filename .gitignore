@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# for development purposes only
+secrets.yaml
+.secrets
+
 # C extensions
 *.so
 

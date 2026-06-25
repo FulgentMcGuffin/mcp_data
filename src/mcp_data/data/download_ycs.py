@@ -1,6 +1,6 @@
 """
 Download datasets from S3 for Lightning Studio / local work
-Fetch all Augur data from AWS S3 and place it in the local directory (env variable AUGUR_DIR) as parquet files 
+Fetch all input data from AWS S3 and place it in the local directory (env variable LOCALDATA_PATH) as parquet files 
 """
 
 import os
@@ -11,10 +11,6 @@ from dotenv import load_dotenv
 from botocore.exceptions import ClientError, NoCredentialsError
 from botocore.client import BaseClient
 import argparse
-# import logging
-
-# logging.basicConfig(level=logging.INFO)
-# _logger = logging.getLogger(__name__)
 
 def download_s3_prefix(
     bucket: str,
@@ -66,14 +62,16 @@ def _download_prefix(
     Returns:
         Number of files downloaded.
     """
-    AUGUR_LOCAL_DATA_PATH = os.getenv("AUGUR_DIR","D:/data/augur")
+    LOCALDATA_PATH = os.getenv("LOCALDATA_PATH",None)
+    if LOCALDATA_PATH is None:
+        raise ValueError("LOCALDATA_PATH environment variable is not set")
     count = 0
     paginator = s3_client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
         for obj in page.get("Contents", []):
             key = obj["Key"]
             filename = key.split("/")[-1]
-            local_path = f"{AUGUR_LOCAL_DATA_PATH}/{local_folder}/{filename}"
+            local_path = f"{LOCALDATA_PATH}/{local_folder}/{filename}"
             ensure_directory_exists(local_path)
             print("Downloading to: %s", local_path)
             s3_client.download_file(bucket_name, key, local_path)
@@ -83,25 +81,30 @@ def _download_prefix(
 
 def main(date: str) -> None:
     
-    AUGUR_BUCKET_NAME = os.getenv("AUGUR_BUCKET_NAME","synthera-sim-engine-data")    
-    AUGUR_PAR_FOLDER = os.getenv("AUGUR_PAR_FOLDER","par_curve")
-    AUGUR_ZERO_COUPON_FOLDER = os.getenv("AUGUR_ZERO_COUPON_FOLDER","zero_coupon")
-    AUGUR_SPOT_FX_FOLDER = os.getenv("AUGUR_SPOT_FX_FOLDER","spot_fx_rates")
+    LOCALDATA_PAR_FOLDER = os.getenv("LOCALDATA_PAR_FOLDER","par_curve")
+    LOCALDATA_ZERO_COUPON_FOLDER = os.getenv("LOCALDATA_ZERO_COUPON_FOLDER","zero_coupon")
+    LOCALDATA_SPOT_FX_FOLDER = os.getenv("LOCALDATA_SPOT_FX_FOLDER","spot_fx_rates")
+    LOCALDATA_BUCKET_NAME = os.getenv("LOCALDATA_BUCKET_NAME",None)    
+    if LOCALDATA_BUCKET_NAME is None:
+        raise ValueError("LOCALDATA_BUCKET_NAME environment variable is not set")    
+    LOCALSOURCE_NAME = os.getenv("LOCALSOURCE_NAME",None)
+    if LOCALSOURCE_NAME is None:
+        raise ValueError("LOCALSOURCE_NAME environment variable is not set")
     
-    print("Fetch Augur data for date: %s from bucket: %s", date, AUGUR_BUCKET_NAME)
+    print("Fetch S3 data for date: %s from bucket: %s", date, LOCALDATA_BUCKET_NAME)
 
     s3_client = boto3.client("s3")
 
-    par_prefix = f"augur/{date}/transformed/par"
-    par_count = _download_prefix(s3_client, AUGUR_BUCKET_NAME, par_prefix, AUGUR_PAR_FOLDER)
+    par_prefix = f"{LOCALSOURCE_NAME}/{date}/transformed/par"
+    par_count = _download_prefix(s3_client, LOCALDATA_BUCKET_NAME, par_prefix, LOCALDATA_PAR_FOLDER)
     if par_count == 0:
         print("No transformed par curve data found for date: %s", date)
     else:
         print("Downloaded %d par curve files for date: %s", par_count, date)
 
-    zero_coupon_prefix = f"augur/{date}/transformed/zero_coupon"
+    zero_coupon_prefix = f"{LOCALSOURCE_NAME}/{date}/transformed/zero_coupon"
     zero_coupon_count = _download_prefix(
-        s3_client, AUGUR_BUCKET_NAME, zero_coupon_prefix, AUGUR_ZERO_COUPON_FOLDER
+        s3_client, LOCALDATA_BUCKET_NAME, zero_coupon_prefix, LOCALDATA_ZERO_COUPON_FOLDER
     )
     if zero_coupon_count == 0:
         print("No transformed zero coupon data found for date: %s", date)
@@ -110,8 +113,8 @@ def main(date: str) -> None:
             "Downloaded %d zero coupon files for date: %s", zero_coupon_count, date
         )
 
-    fx_prefix = f"augur/{date}/transformed/spot_fx_rates"
-    fx_count = _download_prefix(s3_client, AUGUR_BUCKET_NAME, fx_prefix, AUGUR_SPOT_FX_FOLDER)
+    fx_prefix = f"{LOCALSOURCE_NAME}/{date}/transformed/spot_fx_rates"
+    fx_count = _download_prefix(s3_client, LOCALDATA_BUCKET_NAME, fx_prefix, LOCALDATA_SPOT_FX_FOLDER)
     if fx_count == 0:
         print("No transformed spot fx rates data found for date: %s", date)
     else:
@@ -127,14 +130,21 @@ def last_n_fridays(d: date, n: int = 0) -> date:
 if __name__ == "__main__":
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
     load_dotenv(PROJECT_ROOT / ".env", override=False)
-    print("Fetch Augur data")
+    print("Fetch S3 data to local data directory")
     # parser = argparse.ArgumentParser()
     # parser.add_argument("--date", type=str, required=True)
     # args = parser.parse_args()
     # main(date="2026-05-22")
     last_friday = last_n_fridays(date.today(), 0)
+    LOCALDATA_BUCKET_NAME = os.getenv("LOCALDATA_BUCKET_NAME",None)    
+    if LOCALDATA_BUCKET_NAME is None:
+        raise ValueError("LOCALDATA_BUCKET_NAME environment variable is not set")    
+    LOCALSOURCE_NAME = os.getenv("LOCALSOURCE_NAME",None)
+    if LOCALSOURCE_NAME is None:
+        raise ValueError("LOCALSOURCE_NAME environment variable is not set")
+
     download_s3_prefix(
-        bucket=os.getenv("AUGUR_BUCKET_NAME","synthera-sim-engine-data"),
-        prefix=f"augur/{last_friday.strftime('%Y-%m-%d')}/transformed/",
-        local_dir=os.getenv("AUGUR_DIR","D:/data/augur"),
+        bucket=LOCALDATA_BUCKET_NAME,
+        prefix=f"{LOCALSOURCE_NAME}/{last_friday.strftime('%Y-%m-%d')}/transformed/",
+        local_dir=os.getenv("LOCALDATA_PATH","."),
     )

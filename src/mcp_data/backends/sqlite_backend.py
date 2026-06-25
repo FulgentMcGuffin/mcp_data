@@ -25,9 +25,10 @@ from mcp_data.backends.base import (
     is_read_only_sql,
 )
 
-# Load the project's .env so MCP_DB_PATH is available even when it is not
-# exported in the shell. Existing OS env vars take precedence.
+# Load the project's .env and .secrets so MCP_DB_PATH is available even when
+# not exported in the shell. Existing OS env vars take precedence.
 load_dotenv(Path(__file__).resolve().parents[3] / ".env", override=False)
+load_dotenv(Path(__file__).resolve().parents[3] / ".secrets", override=False)
 
 
 def _resolve_default_db_path() -> tuple[str, str]:

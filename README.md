@@ -147,8 +147,10 @@ from mcp_data.client.session import DBClient  # use as a library
 | `MCP_SEMANTICS_DIR` | `semantics/` | Directory holding semantic profile YAML files |
 | `ANTHROPIC_API_KEY` | *(required for `--llm` / `--llm-single-shot`)* | Anthropic API key |
 
-Variables are loaded from a `.env` file at the project root via `python-dotenv`. OS
-environment variables take precedence over `.env` values.
+Variables are loaded from `.env` and `.secrets` files (if they exist) at the project root
+via `python-dotenv`. Both files are treated as extensions of each other: `.env` is loaded
+first, then `.secrets`, so `.secrets` can override `.env` if needed. OS environment
+variables take precedence over both files.
 
 ---
 
