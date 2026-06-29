@@ -217,11 +217,6 @@ via `python-dotenv`. Both files are treated as extensions of each other: `.env` 
 first, then `.secrets`, so `.secrets` can override `.env` if needed. OS environment
 variables take precedence over both files.
 
-**Transport selection:** When using `--llm` or `--llm-single-shot` (agentic/LLM modes),
-the client automatically prefers Streamable HTTP transport over stdio for better stability
-during long-running LLM operations. To explicitly use stdio, set `MCP_TRANSPORT=stdio`
-before running the client.
-
 ---
 
 ## Running
@@ -250,7 +245,54 @@ MCP_TRANSPORT=http uv run db-mcp-client "tables"
 
 Health check: `GET http://127.0.0.1:8000/healthz`
 
-> On PowerShell use `$env:MCP_TRANSPORT = "http"` instead of the inline prefix.
+For Windows/Powershell:
+
+```powershell
+# Terminal 1: Start the MCP Server (with a custom db - make sure it is not overwritten in the .env file when setting from the terminal, .env file takes priority)
+$env:MCP_TRANSPORT="http"
+$env:MCP_DB_TYPE="duckdb"
+$env:MCP_DB_PATH="D:/custom_db.duckdb"
+uv run db-mcp-server
+```
+
+You should see output like:
+```
+INFO:     Started server process [xxxxx]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000
+```
+
+**Leave this terminal running** — it's your MCP server.
+
+Open a **new** PowerShell window/tab and run:
+
+```powershell
+$env:MCP_TRANSPORT="http"
+$env:MCP_DB_TYPE="duckdb"
+$env:MCP_DB_PATH="D:/custom_db.duckdb"
+$env:ANTHROPIC_API_KEY="your-api-key-here"  # Only needed for --llm mode
+uv run db-mcp-client --llm "When non-farm surpises on the downside, what is the trading volume 1 minute preceeding the release and 10 minutes after the release as a percentage of total daily trading volume for SPY and ES futures respectively?"
+```
+
+To verify the server is running, you can also test with curl in a third terminal:
+
+```powershell
+curl http://127.0.0.1:8000/healthz
+```
+
+Should return: `{"status":"ok","backend":"duckdb"}`
+
+**Note**: If you want to use the settings from your  `.env` file, you can simplify Terminal 1 to just:
+```powershell
+uv run db-mcp-server
+```
+
+And in Terminal 2, set the API key and run the client:
+```powershell
+$env:ANTHROPIC_API_KEY="your-api-key"
+uv run db-mcp-client --llm "your question"
+```
 
 ---
 
