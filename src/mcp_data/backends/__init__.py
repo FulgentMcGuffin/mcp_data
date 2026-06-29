@@ -1,8 +1,8 @@
 """Database backends.
 
 ``base`` defines the generic :class:`DataBackend` protocol; concrete backends
-(SQLite now, Redis later) implement it so the server tools and query pipeline
-never depend on a specific storage engine.
+(SQLite, DuckDB) implement it so the server tools and query pipeline never depend
+on a specific storage engine.
 """
 
 from mcp_data.backends.base import (
@@ -14,6 +14,7 @@ from mcp_data.backends.base import (
     is_read_only_sql,
 )
 from mcp_data.backends.sqlite_backend import SQLiteSource
+from mcp_data.backends.duckdb_backend import DuckDBSource
 from mcp_data.config import Settings
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "QueryError",
     "TableSchema",
     "SQLiteSource",
+    "DuckDBSource",
     "create_backend",
     "is_read_only_sql",
 ]
@@ -31,9 +33,12 @@ __all__ = [
 def create_backend(settings: Settings) -> DataBackend:
     """Construct the configured backend (read-only, for the serving path).
 
-    Today only SQLite is supported. A future Redis cache backend would be
-    selected here (e.g. via a ``settings.backend`` field) without changing any
-    server or client code, since both satisfy the :class:`DataBackend` protocol.
+    Selects between SQLite and DuckDB based on ``settings.db_type``. Both satisfy
+    the :class:`DataBackend` protocol, so the server and client code is unchanged
+    when switching backends.
     """
 
-    return SQLiteSource(settings.db_path, read_only=True)
+    if settings.db_type == "duckdb":
+        return DuckDBSource(settings.db_path, read_only=True)
+    else:  # default to sqlite
+        return SQLiteSource(settings.db_path, read_only=True)

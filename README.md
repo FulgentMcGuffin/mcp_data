@@ -32,10 +32,11 @@ and financial terminology from a per-dataset semantic profile.
 
 ## Overview
 
-SQLite is the first backend, hidden behind a generic `DataBackend` abstraction so
-the storage layer can be swapped (e.g. a Redis cache) without touching the server tools or
-client. Transport is selectable between **stdio** and **Streamable HTTP** (hosted via
-FastAPI).
+A **Model Context Protocol (MCP) server and client** for querying databases with natural
+language. Choose between **SQLite** and **DuckDB** backends via `MCP_DB_TYPE`, both hidden
+behind a generic `DataBackend` abstraction so the storage layer can be swapped without
+touching the server tools or client. Transport is selectable between **stdio** and
+**Streamable HTTP** (hosted via FastAPI).
 
 Key libraries:
 
@@ -44,6 +45,8 @@ Key libraries:
 | Package / dependency management | **uv** |
 | DataFrames | **polars** |
 | Query pipeline | **Apache Hamilton** |
+| SQLite backend | **sqlite3** (standard library) |
+| DuckDB backend | **duckdb** |
 | MCP server | **FastMCP** (official `mcp` SDK) + **FastAPI** for HTTP |
 | LLM integration | **LangChain** + **langchain-anthropic** (Claude) |
 | Agentic loop | **LangGraph** (`create_react_agent`) |
@@ -67,7 +70,8 @@ user query
                                           Hamilton dataflow (validate →
                                           execute → polars frame → JSON)
                                                               │
-                                          SQLiteSource (DataBackend, read-only)
+                                          DataBackend (SQLiteSource or DuckDBSource)
+                                          with read_only protection
                                                               │
                                           semantics/<dataset>.yaml
                                           (served via describe_dataset)
@@ -85,7 +89,8 @@ generating SQL.
 | `config.py` | `Settings` dataclass; loads all config from env / `.env` |
 | `backends/base.py` | `DataBackend` (read) + `DataSink` (write) contracts; `is_read_only_sql` guard |
 | `backends/sqlite_backend.py` | `SQLiteSource`: unified read/write SQLite store (`read_only` flag) |
-| `backends/__init__.py` | `create_backend()` factory |
+| `backends/duckdb_backend.py` | `DuckDBSource`: unified read/write DuckDB store (`read_only` flag) |
+| `backends/__init__.py` | `create_backend()` factory; selects SQLite or DuckDB based on `MCP_DB_TYPE` |
 | `semantics/__init__.py` | `SemanticProfile`, `load_profile`, `render_profile_prompt` |
 | `data/seed.py` | Creates and seeds the example SQLite database |
 | `data/download_ycs.py` | Downloads raw yield-curve data from external sources |
@@ -102,6 +107,33 @@ generating SQL.
 Semantic profiles live under `semantics/` at the project root:
 `semantics/input_data.yaml` (real yield-curve dataset) and `semantics/example.yaml`
 (seeded demo database).
+
+## Database backends
+
+The project supports multiple database backends, selectable via the `MCP_DB_TYPE`
+environment variable. Both backends implement the same `DataBackend` and `DataSink`
+protocols, so switching requires only changing the configuration — no code changes.
+
+### SQLite (default)
+
+```bash
+MCP_DB_TYPE=sqlite
+MCP_DB_PATH=/path/to/database.db
+```
+
+Lightweight, file-based SQL database. Best for small to medium datasets. Included
+in the Python standard library (no extra dependencies).
+
+### DuckDB
+
+```bash
+MCP_DB_TYPE=duckdb
+MCP_DB_PATH=/path/to/database.duckdb
+```
+
+High-performance analytical SQL engine with advanced features (window functions,
+JSON, Parquet I/O). Best for OLAP workloads and large datasets. Requires the
+`duckdb` package (automatically included in `pyproject.toml`).
 
 ---
 
@@ -170,7 +202,8 @@ from mcp_data.client.session import DBClient  # use as a library
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MCP_TRANSPORT` | `stdio` | `stdio` or `http` |
-| `MCP_DB_PATH` | `data/example.db` | Path to the SQLite file |
+| `MCP_DB_TYPE` | `sqlite` | `sqlite` or `duckdb` |
+| `MCP_DB_PATH` | `data/example.db` | Path to the database file (matches the backend type) |
 | `MCP_HOST` | `127.0.0.1` | HTTP server host |
 | `MCP_PORT` | `8000` | HTTP server port |
 | `MCP_SERVER_NAME` | `db-mcp` | Server display name reported to clients |

@@ -6,6 +6,7 @@ is therefore just a matter of writing another class that satisfies this
 protocol; no server or client code needs to change.
 """
 
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -95,12 +96,24 @@ def _polars_dtype_to_sql(dtype: pl.DataType) -> str:
     return "TEXT"
 
 
+def _normalize_sql_type(sql_type: str) -> str:
+    """Normalize backend-specific SQL type names for compatibility checks."""
+    base = sql_type.upper().split("(")[0].strip()
+    if base in {"TEXT", "VARCHAR", "STRING", "BLOB"}:
+        return "TEXT"
+    if base in {"INTEGER", "INT", "BIGINT", "HUGEINT", "BOOLEAN"}:
+        return "INTEGER"
+    if base in {"REAL", "FLOAT", "DOUBLE", "DECIMAL", "NUMERIC"}:
+        return "REAL"
+    return base
+
+
 @runtime_checkable
 class DataBackend(Protocol):
     """Storage-agnostic *read* interface used by the server tools.
 
     This is the seam that keeps the project engine-agnostic: a new store (e.g. a
-    Redis cache) only needs to satisfy this protocol for the MCP server and query
+    Redis cache) only needs to satisfy this protocol and query
     pipeline to use it -- no write capabilities required.
     """
 
@@ -206,3 +219,167 @@ class DataSink(ABC):
             else:
                 self.insert(table_name, df.to_dicts())
         return created
+
+    def _validate_append_schema(
+        self,
+        table_name: str,
+        df: pl.DataFrame,
+        duplicate_check_columns: list[str] | None = None,
+    ) -> list[str] | None:
+        """Validate *df* against *table_name*; return normalized dup-check columns."""
+        existing_schema = self.get_schema(table_name)
+        existing_columns = {
+            col.name.lower(): _normalize_sql_type(col.type)
+            for col in existing_schema.columns
+        }
+        df_schema = {
+            col.lower(): _polars_dtype_to_sql(dtype)
+            for col, dtype in df.schema.items()
+        }
+
+        for col_name, col_type in df_schema.items():
+            if col_name not in existing_columns:
+                raise QueryError(
+                    f"Column '{col_name}' in DataFrame does not exist in table '{table_name}'."
+                )
+            if col_type != existing_columns[col_name]:
+                raise QueryError(
+                    f"Column '{col_name}' has type '{col_type}' in DataFrame but "
+                    f"'{existing_columns[col_name]}' in table '{table_name}'."
+                )
+
+        if duplicate_check_columns is None:
+            return None
+
+        dup_check_cols_lower = [col.lower() for col in duplicate_check_columns]
+        for col in dup_check_cols_lower:
+            if col not in df_schema:
+                raise QueryError(
+                    f"Duplicate check column '{col}' does not exist in DataFrame."
+                )
+        return dup_check_cols_lower
+
+    def append_to_table(
+        self,
+        table_name: str,
+        df: pl.DataFrame,
+        duplicate_check_columns: list[str] | None = None,
+    ) -> int:
+        """Append rows from a Polars DataFrame to an existing table.
+
+        Validates that the DataFrame schema is compatible with the existing table.
+        Optionally checks for duplicates based on a subset of columns.
+
+        Args:
+            table_name: Name of the table to append to.
+            df: DataFrame containing rows to append.
+            duplicate_check_columns: If provided, checks if rows with matching values
+                for these columns already exist in the table. Rows matching existing
+                entries are skipped. If None (default), all rows are appended
+                regardless of whether they already exist.
+
+        Returns:
+            Number of rows actually inserted.
+
+        Raises:
+            QueryError: If the DataFrame schema is incompatible with the table.
+        """
+        if len(df) == 0:
+            return 0
+
+        dup_check_cols_lower = self._validate_append_schema(
+            table_name, df, duplicate_check_columns
+        )
+
+        rows_to_insert = df.to_dicts()
+
+        if dup_check_cols_lower is not None:
+            where_conditions = [
+                {col: row[col] for col in dup_check_cols_lower}
+                for row in rows_to_insert
+            ]
+
+            rows_to_insert = [
+                row
+                for row, where_cond in zip(rows_to_insert, where_conditions)
+                if not self.select(table_name, where=where_cond)
+            ]
+
+        if rows_to_insert:
+            return self.insert(table_name, rows_to_insert)
+        return 0
+
+    def remove_duplicates(
+        self,
+        table_name: str,
+        duplicate_columns: list[str] | None = None,
+        keep: str = "first",
+    ) -> int:
+        """Remove duplicate rows from a table, keeping only one occurrence.
+
+        Identifies duplicate rows based on specified columns (or all columns if
+        not specified) and deletes duplicates, keeping either the first or last
+        occurrence of each duplicate group.
+
+        Args:
+            table_name: Name of the table to deduplicate.
+            duplicate_columns: Columns that define uniqueness. If None, all columns
+                are considered. If provided, duplicates are determined by matching
+                values across these columns only.
+            keep: Which occurrence to keep - ``"first"`` (default) or ``"last"``.
+
+        Returns:
+            Number of duplicate rows deleted.
+
+        Raises:
+            QueryError: If the table doesn't exist or invalid arguments provided.
+        """
+        if keep not in ("first", "last"):
+            raise QueryError(f"keep must be 'first' or 'last', got {keep!r}")
+
+        if table_name not in self.list_tables():
+            raise QueryError(f"Table {table_name!r} does not exist")
+
+        schema = self.get_schema(table_name)
+        all_columns = [col.name for col in schema.columns]
+
+        if duplicate_columns is None:
+            duplicate_columns = all_columns
+        else:
+            dup_cols_lower = [col.lower() for col in duplicate_columns]
+            all_cols_lower = [col.lower() for col in all_columns]
+            for col in dup_cols_lower:
+                if col not in all_cols_lower:
+                    raise QueryError(
+                        f"Duplicate check column '{col}' does not exist in table '{table_name}'."
+                    )
+            # Use the actual column names from the table schema
+            duplicate_columns = [
+                col for col in all_columns if col.lower() in dup_cols_lower
+            ]
+
+        rows = self.select(table_name)
+        if not rows:
+            return 0
+
+        seen = {}
+        rows_to_delete = []
+
+        for row in rows:
+            key = tuple(row.get(col) for col in duplicate_columns)
+
+            if key in seen:
+                if keep == "first":
+                    rows_to_delete.append(row)
+                else:
+                    rows_to_delete.append(seen[key])
+                    seen[key] = row
+            else:
+                seen[key] = row
+
+        deleted_count = 0
+        for row in rows_to_delete:
+            where_clause = {col: row[col] for col in all_columns}
+            deleted_count += self.delete(table_name, where_clause)
+
+        return deleted_count

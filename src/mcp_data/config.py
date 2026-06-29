@@ -16,6 +16,7 @@ from typing import Literal
 from dotenv import load_dotenv
 
 Transport = Literal["stdio", "http"]
+DBType = Literal["sqlite", "duckdb"]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "example.db"
@@ -41,11 +42,21 @@ def _env_transport(default: Transport = "stdio") -> Transport:
     )
 
 
+def _env_db_type(default: DBType = "sqlite") -> DBType:
+    value = os.environ.get("MCP_DB_TYPE", default).strip().lower()
+    if value in ("sqlite", "duckdb"):
+        return value  # type: ignore[return-value]
+    raise ValueError(
+        f"Invalid MCP_DB_TYPE={value!r}; expected 'sqlite' or 'duckdb'."
+    )
+
+
 @dataclass(frozen=True)
 class Settings:
     """Resolved runtime settings."""
 
     transport: Transport = "stdio"
+    db_type: DBType = "sqlite"
     db_path: Path = DEFAULT_DB_PATH
     host: str = "127.0.0.1"
     port: int = 8000
@@ -67,6 +78,7 @@ class Settings:
         dataset = os.environ.get("MCP_DATASET", db_path.stem)
         return cls(
             transport=_env_transport(),
+            db_type=_env_db_type(),
             db_path=db_path,
             host=os.environ.get("MCP_HOST", "127.0.0.1"),
             port=int(os.environ.get("MCP_PORT", "8000")),
