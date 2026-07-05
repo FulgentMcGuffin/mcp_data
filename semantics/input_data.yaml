@@ -145,7 +145,7 @@ tables:
       source1: {type: TEXT, description: "First source in the correlation pair. One of the values in the 'source' column of the zero_rates table."}
       source2: {type: TEXT, description: "Second source in the correlation pair. One of the values in the 'source' column of the zero_rates table."}
       window_size: {type: INTEGER, description: "Rolling window size in observations (e.g. 20, 40, 60, 90)."}
-      corr_type: {type: TEXT, description: "Correlation type: 'spearman' (this is the wrong label and it should be 'pearson') or 'dcorr' (distance correlation)."}
+      corr_type: {type: TEXT, description: "Correlation type: 'pearson' or 'dcorr' (distance correlation)."}
 
 examples:
   - q: "What is the highest absolute difference in zero rate between the 5Y and 10Y for Italy between 2010 and 2015?"
