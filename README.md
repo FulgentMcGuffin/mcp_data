@@ -51,6 +51,7 @@ Key libraries:
 | LLM integration | **LangChain** + **langchain-anthropic** (Claude) |
 | Agentic loop | **LangGraph** (`create_react_agent`) |
 | MCP ↔ LangChain bridge | **langchain-mcp-adapters** |
+| Desktop GUI (optional) | **PySide6** + **matplotlib** (`uv sync --group gui`) |
 
 ## Architecture
 
@@ -102,7 +103,8 @@ generating SQL.
 | `client/session.py` | `DBClient`: transport-agnostic MCP session (stdio + HTTP) |
 | `client/planner.py` | `RuleBasedPlanner` + `LLMPlanner` (single-shot Claude) |
 | `client/agent.py` | `SQLAgent`: LangGraph ReAct agent over live MCP tools |
-| `client/cli.py` | CLI entry point (`db-mcp-client`) |
+| `client/cli.py` | CLI entry point (`db-mcp-client`; supports `--gui`) |
+| `gui/` | Desktop GUI (PySide6): chat, table, plotnine charts over `SQLAgent` |
 
 Semantic profiles live under `semantics/` at the project root:
 `semantics/input_data.yaml` (real yield-curve dataset) and `semantics/example.yaml`
@@ -147,11 +149,17 @@ uv sync
 uv run db-mcp-seed        # create data/example.db with sample customers + orders
 ```
 
+For the **desktop GUI**, install the optional PySide6 dependencies as well:
+
+```bash
+uv sync --group gui
+```
+
 ## Installing as a package
 
 `mcp-data` is a standard [PEP 621](https://peps.python.org/pep-0621/) project built with
-**hatchling**. It exposes three console scripts: `db-mcp-server`, `db-mcp-client`,
-`db-mcp-seed`.
+**hatchling**. It exposes four console scripts: `db-mcp-server`, `db-mcp-client`,
+`db-mcp-seed`, and `db-mcp-gui`.
 
 ### With uv
 
@@ -184,6 +192,8 @@ pip install dist/mcp_data-*.whl
 ```bash
 db-mcp-seed                             # create the example database
 db-mcp-client "tables"                  # run a one-shot query
+db-mcp-client --gui                     # desktop GUI (after uv sync --group gui)
+db-mcp-gui                              # same as --gui
 ```
 
 ```python
@@ -375,6 +385,70 @@ planner = LLMPlanner(model=ChatOpenAI(model="gpt-4o"))
 # agent: SQLAgent(client, model=ChatOpenAI(model="gpt-4o"))
 ```
 
+### Desktop GUI (`--gui`)
+
+A **PySide6 desktop app** for the same agentic backend as `--llm`: ask questions in
+natural language, read the LLM’s markdown answer in a chat log, and explore tabular
+results in a sortable grid with an auto-generated **plotnine** chart. Requires
+`ANTHROPIC_API_KEY` and the optional GUI dependencies.
+
+Install once:
+
+```bash
+uv sync --group gui
+```
+
+Launch (any of these):
+
+```bash
+uv run db-mcp-client --gui
+uv run db-mcp-gui
+uv run python -m mcp_data.gui
+```
+
+The GUI reads the same `.env` / `.secrets` and semantic profiles as the CLI
+(`MCP_DB_PATH`, `MCP_DATASET`, `MCP_SEMANTICS_DIR`, etc.). LangSmith tracing is
+disabled on startup unless you opt in.
+
+| UK average 10Y par rates (2012–2025) | EUR & GBP daily FX rates (Mar–Jun 2020) |
+|:---:|:---:|
+| ![Average UK 10Y par rates by month](resource/png/gui/question1.png) | ![EUR and GBP exchange rates with faceted plot](resource/png/gui/question2.png) |
+
+Example questions (yield-curve dataset):
+
+- *What are the average 10 year par rates for the UK per month from 2012 to 2025?*
+- *What are the daily EUR and GBP exchange rates from Mar 2020 to Jun 2020?*
+
+**Using the app**
+
+- **Chat:** type a question and press **Send** (or Enter). Status shows **Thinking…**
+  while `SQLAgent` runs on a background thread; the assistant reply appears as markdown.
+- **Table (left):** sortable result grid; hover for full cell values; **Ctrl+C** copies
+  selection as TSV.
+- **Plot (right):** plotnine chart inferred from the dataframe (date-like column on x,
+  numeric columns on y). Drag splitters to resize panes; hover for tooltips (per panel
+  when faceted).
+- **Settings:** UI theme (14 options), plot geoms/theme/y-scale/legend, download format.
+  Preferences persist in `~/mcp-data-gui.yaml`.
+
+**Window:** frameless, draggable title bar
+
+**Troubleshooting**
+
+| Symptom | Likely cause |
+|---|---|
+| `Install them with: uv sync --group gui` | GUI deps not installed |
+| LLM errors / no response | Set `ANTHROPIC_API_KEY` |
+| Wrong or empty SQL | Check `MCP_DB_PATH`, `MCP_DATASET`, `semantics/<dataset>.yaml` |
+| Plot error after changing geoms | Try `LP` (line + point) in Plot Settings |
+| HTTP connection failed with `--llm` | Start `db-mcp-server` or set `MCP_TRANSPORT=stdio` in `.env` |
+
+For CLI debugging of the same backend:
+
+```bash
+uv run db-mcp-client --llm "your question here"
+```
+
 ---
 
 ## Semantic layer
@@ -448,13 +522,15 @@ uv run pytest -q
 
 The suite covers the SQLite backend, Hamilton pipeline, `DataSink` write operations,
 the semantics module (load, render, roundtrip, fallback), `describe_dataset` (curated
-and live-introspection paths), and `LLMPlanner` profile injection (mocked model, no
-live API call required).
+and live-introspection paths), `LLMPlanner` profile injection (mocked model, no
+live API call required), and optional GUI module imports (when `uv sync --group gui`).
 
 ---
 
 ## Roadmap
 
+- ✅ **Desktop GUI** — PySide6 chat + table + plotnine charts via `db-mcp-client --gui`
+  / `db-mcp-gui` (optional `uv sync --group gui`).
 - **Redis cache backend** — add `RedisBackend(DataBackend)` and wire it into
   `create_backend()`; the server tools, Hamilton pipeline, and client are unchanged.
   A cache node could slot into the Hamilton dataflow between `validated_sql` and

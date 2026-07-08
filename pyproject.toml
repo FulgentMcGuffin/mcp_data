@@ -34,10 +34,15 @@ dependencies = [
 db-mcp-server = "mcp_data.server.__main__:main"
 db-mcp-client = "mcp_data.client.cli:main"
 db-mcp-seed = "mcp_data.data.seed:main"
+db-mcp-gui = "mcp_data.gui.__main__:_entry"
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+]
+gui = [
+    "pyside6>=6.11.1",
+    "matplotlib>=3.8.0",
 ]
 
 [build-system]

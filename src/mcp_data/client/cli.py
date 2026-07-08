@@ -153,6 +153,17 @@ async def _amain(one_shot: str | None, mode: str) -> None:
             await _interactive(client, planner)
 
 
+def _launch_gui() -> None:
+    try:
+        from mcp_data.gui.chat_dialog import main as gui_main
+    except ImportError as exc:
+        raise SystemExit(
+            "The desktop GUI requires optional dependencies. Install them with:\n"
+            "  uv sync --group gui"
+        ) from exc
+    gui_main()
+
+
 def main() -> None:
     from mcp_data.client._tracing import disable_langsmith_tracing
 
@@ -185,9 +196,26 @@ def main() -> None:
             "model picks tool calls in one step. Requires ANTHROPIC_API_KEY."
         ),
     )
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        default=False,
+        help=(
+            "Launch the desktop GUI (PySide6): chat, sortable table, and plotnine "
+            "charts over the same SQLAgent backend. Requires optional GUI "
+            "dependencies (uv sync --group gui)."
+        ),
+    )
     args = parser.parse_args()
     if args.llm and args.llm_single_shot:
         parser.error("Use only one of --llm / --llm-single-shot.")
+    if args.gui and (args.llm or args.llm_single_shot):
+        parser.error("--gui cannot be combined with --llm / --llm-single-shot.")
+    if args.gui and args.query:
+        parser.error("--gui cannot be combined with a one-shot query argument.")
+    if args.gui:
+        _launch_gui()
+        return
     if args.llm:
         mode = "agent"
     elif args.llm_single_shot:
