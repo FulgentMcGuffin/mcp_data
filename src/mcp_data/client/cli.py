@@ -113,7 +113,11 @@ async def _interactive_agent(agent: "SQLAgent") -> None:
             continue
         if query.lower() in ("quit", "exit"):
             break
-        result = await agent.run(query)
+        try:
+            result = await agent.run(query)
+        except Exception as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            continue
         print(result.answer or "(no answer)")
 
 

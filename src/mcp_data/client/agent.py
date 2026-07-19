@@ -14,7 +14,6 @@ Requires ``ANTHROPIC_API_KEY`` (or an equivalent for a substituted model).
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 from mcp_data.client import _tracing  # noqa: F401 — disable LangSmith before LangChain
@@ -23,22 +22,29 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.prebuilt import create_react_agent
 
+from mcp_data.client.anthropic import create_anthropic_chat
 from mcp_data.client.session import DBClient
 
 DEFAULT_MODEL = "claude-sonnet-5"
 
 _AGENT_SYSTEM_PROMPT = """\
-You are an expert data analyst with access to tools for querying a database.
+You are an expert data analyst with access to tools for querying a database \
+and a few utility tools for the current date/time.
 
 Work step by step:
 1. Use the dataset description (provided below, if any) to understand the tables,
    columns, and the vocabulary that maps business terms to stored values/columns.
-2. If you are unsure of the exact schema, call list_tables / get_schema.
-3. Construct a single read-only SQL query and run it with run_sql.
-4. If the query errors or returns unexpected results, inspect the schema and
+2. For questions about *today*, the *current date/time*, or *relative dates*
+   (e.g. "what was the date 2 years ago?", "last month"), call get_current_date
+   or get_current_datetime first and compute from that answer. Do not guess.
+3. If you are unsure of the exact schema, call list_tables / get_schema.
+4. When the question needs data from the database, construct a read-only SQL
+   query and run it with run_sql. If the query errors, inspect the schema and
    try again -- do not give up after one attempt.
-5. When you have the answer, reply in clear natural language. Briefly state the
-   SQL you ran so the user can verify it.
+5. When you have the answer, reply in clear natural language. If you ran SQL,
+   briefly state it so the user can verify.
+
+Not every question requires SQL — utility tools alone may be enough.
 
 Only read-only SQL (SELECT / WITH / PRAGMA / EXPLAIN) is permitted.\
 """
@@ -47,15 +53,7 @@ Only read-only SQL (SELECT / WITH / PRAGMA / EXPLAIN) is permitted.\
 def _build_model(model: object | None):
     if model is not None:
         return model
-    from langchain_anthropic import ChatAnthropic
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "ANTHROPIC_API_KEY is not set. "
-            "Add it to your .env file or export it before using --llm."
-        )
-    return ChatAnthropic(model=DEFAULT_MODEL, api_key=api_key, temperature=0)
+    return create_anthropic_chat(DEFAULT_MODEL)
 
 
 def _compose_system_prompt(profile_prompt: str | None) -> str:

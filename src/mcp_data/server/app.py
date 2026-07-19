@@ -114,39 +114,37 @@ def _register_tools(mcp: FastMCP, backend: DataBackend, settings: Settings) -> N
         """Expose the dataset semantic profile as an addressable MCP resource."""
         return _build_dataset_description(backend, settings)
 
-    @mcp.tool(
-        name="get_current_datetime_string",
-        description="Returns the current date and time formatted according to the specified format string. This tool provides the current system time formatted as a string. Use this tool when you need to know the current date and time, such as for timestamping records, calculating time differences, or displaying the current time to users. The default format returns the date and time in ISO-like format (YYYY-MM-DD HH:MM:SS).",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "date_format": {
-                    "type": "string",
-                    "description": "A string specifying the format of the returned datetime. Uses Python's strftime format codes. For example, '%Y-%m-%d' returns just the date in YYYY-MM-DD format, '%H:%M:%S' returns just the time in HH:MM:SS format, '%B %d, %Y' returns a date like 'May 07, 2025'. The default is '%Y-%m-%d %H:%M:%S' which returns a complete timestamp like '2025-05-07 14:32:15'.",
-                    "default": "%Y-%m-%d %H:%M:%S",
-                }
-            },
-            "required": [],
-        },
-    )
-    def get_current_datetime_string(date_format="%Y-%m-%d %H:%M:%S"):
+    @mcp.tool()
+    def get_current_datetime_string(date_format: str = "%Y-%m-%d %H:%M:%S") -> str:
+        """Return the current date and time as a formatted string.
+
+        Use when a custom format is needed. For relative-date questions anchored
+        on "today", prefer get_current_date or get_current_datetime instead.
+
+        Args:
+            date_format: Python ``strftime`` format. Default ``%Y-%m-%d %H:%M:%S``.
+        """
         if not date_format:
             raise ValueError("date_format cannot be empty")
         return datetime.now().strftime(date_format)
 
-    @mcp.tool(
-        name="get_current_datetime",
-        description="Returns the current date and time as a datetime object."
-    )
-    def get_current_datetime() -> datetime:
-        return datetime.now()
+    @mcp.tool()
+    def get_current_datetime() -> str:
+        """Return the current date and time in ISO format.
 
-    @mcp.tool(
-        name="get_current_date",
-        description="Returns the current date as a date object."
-    )
-    def get_current_date() -> date:
-        return date.today()
+        Use for "now", "today's date and time", or as the anchor when computing
+        relative dates (e.g. "2 years ago").
+        """
+        return datetime.now().isoformat()
+
+    @mcp.tool()
+    def get_current_date() -> str:
+        """Return today's date in ISO format (YYYY-MM-DD).
+
+        Call this for "today", "current date", or before computing relative
+        dates such as "what was the date 2 years ago?".
+        """
+        return date.today().isoformat()
 
 
 def create_server(settings: Settings | None = None) -> tuple[FastMCP, DataBackend]:

@@ -11,7 +11,6 @@ Two planners are provided:
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
@@ -162,20 +161,9 @@ class LLMPlanner(Planner):
         extra_tools: list | None = None,
     ) -> None:
         if model is None:
-            # Imported here so the rest of the module loads without the SDK.
-            from langchain_anthropic import ChatAnthropic
+            from mcp_data.client.anthropic import create_anthropic_chat
 
-            api_key = os.environ.get("ANTHROPIC_API_KEY")
-            if not api_key:
-                raise ValueError(
-                    "ANTHROPIC_API_KEY is not set. "
-                    "Add it to your .env file or export it before using --llm."
-                )
-            model = ChatAnthropic(
-                model=self.DEFAULT_MODEL,
-                api_key=api_key,
-                temperature=0,
-            )
+            model = create_anthropic_chat(self.DEFAULT_MODEL)
         self._model = model
         self._profile_prompt = profile_prompt
         self._extra_tools = list(extra_tools) if extra_tools else []

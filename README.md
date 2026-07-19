@@ -243,7 +243,17 @@ uv run db-mcp-client "sql: select * from customers limit 5"
 uv run db-mcp-client
 ```
 
-### Streamable HTTP (long-lived server)
+### Streamable HTTP
+
+When `MCP_TRANSPORT=http`, the client **automatically starts a local HTTP server**
+if none is listening on `MCP_HOST`/`MCP_PORT`. You do not need a separate terminal
+for local use — just run the client:
+
+```bash
+MCP_TRANSPORT=http uv run db-mcp-client "tables"
+```
+
+For a long-lived server (e.g. shared by multiple clients), start it explicitly:
 
 ```bash
 # Terminal 1 — start the server
@@ -441,7 +451,7 @@ Example questions (yield-curve dataset):
 | LLM errors / no response | Set `ANTHROPIC_API_KEY` |
 | Wrong or empty SQL | Check `MCP_DB_PATH`, `MCP_DATASET`, `semantics/<dataset>.yaml` |
 | Plot error after changing geoms | Try `LP` (line + point) in Plot Settings |
-| HTTP connection failed with `--llm` | Start `db-mcp-server` or set `MCP_TRANSPORT=stdio` in `.env` |
+| HTTP connection failed / server exited | Check `MCP_DB_PATH` exists; server stderr is shown in the error message |
 
 For CLI debugging of the same backend:
 

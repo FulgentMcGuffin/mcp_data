@@ -1,24 +1,81 @@
 """Transport-agnostic MCP client session wrapper.
 
 Connects either by spawning the server over ``stdio`` or by talking to a running
-Streamable HTTP server, selected from :class:`Settings`. The rest of the client
-(planner, CLI) only sees :meth:`DBClient.list_tools` and
+Streamable HTTP server, selected from :class:`Settings`. When HTTP is configured
+but no server is listening, a local HTTP server subprocess is started
+automatically so a separate terminal is not required.
+
+The rest of the client (planner, CLI) only sees :meth:`DBClient.list_tools` and
 :meth:`DBClient.call_tool`, so swapping transports (or adding OAuth to the HTTP
 path later) does not ripple outward.
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
+import subprocess
 import sys
 from contextlib import AsyncExitStack
 from typing import Any
 
+import httpx
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
 
 from mcp_data.config import Settings, get_settings
+
+
+def _server_env(settings: Settings, *, transport: str) -> dict[str, str]:
+    """Build a child-process environment aligned with ``settings``."""
+    env = dict(os.environ)
+    env["MCP_TRANSPORT"] = transport
+    env["MCP_DB_TYPE"] = settings.db_type
+    env["MCP_DB_PATH"] = str(settings.db_path)
+    env["MCP_HOST"] = settings.host
+    env["MCP_PORT"] = str(settings.port)
+    env["MCP_SERVER_NAME"] = settings.server_name
+    env["MCP_DATASET"] = settings.dataset
+    env["MCP_SEMANTICS_DIR"] = str(settings.semantics_dir)
+    return env
+
+
+async def _http_server_healthy(settings: Settings) -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=1.0) as client:
+            response = await client.get(settings.health_url)
+            return response.status_code == 200
+    except (httpx.HTTPError, OSError):
+        return False
+
+
+async def _wait_for_http_server(
+    settings: Settings,
+    proc: subprocess.Popen[bytes],
+    *,
+    timeout: float = 30.0,
+) -> None:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        exit_code = proc.poll()
+        if exit_code is not None:
+            stderr = ""
+            if proc.stderr is not None:
+                stderr = proc.stderr.read().decode("utf-8", errors="replace").strip()
+            detail = f"\n{stderr}" if stderr else ""
+            raise RuntimeError(
+                f"MCP HTTP server exited before becoming ready (code {exit_code})."
+                f"{detail}"
+            )
+        if await _http_server_healthy(settings):
+            return
+        await asyncio.sleep(0.2)
+    proc.terminate()
+    raise RuntimeError(
+        f"MCP HTTP server did not become ready at {settings.health_url} "
+        f"within {timeout:.0f}s"
+    )
 
 
 class DBClient:
@@ -28,6 +85,7 @@ class DBClient:
         self._settings = settings or get_settings()
         self._stack = AsyncExitStack[bool | None]()
         self._session: ClientSession | None = None
+        self._server_proc: subprocess.Popen[bytes] | None = None
 
     @property
     def session(self) -> ClientSession:
@@ -37,6 +95,14 @@ class DBClient:
 
     async def __aenter__(self) -> "DBClient":
         if self._settings.transport == "http":
+            if not await _http_server_healthy(self._settings):
+                self._server_proc = subprocess.Popen(
+                    [sys.executable, "-m", "mcp_data.server"],
+                    env=_server_env(self._settings, transport="http"),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+                await _wait_for_http_server(self._settings, self._server_proc)
             read, write, _ = await self._stack.enter_async_context(
                 streamablehttp_client(
                     self._settings.http_url,
@@ -44,14 +110,10 @@ class DBClient:
                 )
             )
         else:
-            # Spawn the server as a subprocess in stdio mode.
-            env = dict(os.environ)
-            env["MCP_TRANSPORT"] = "stdio"
-            env["MCP_DB_PATH"] = str(self._settings.db_path)
             params = StdioServerParameters(
                 command=sys.executable,
                 args=["-m", "mcp_data.server"],
-                env=env,
+                env=_server_env(self._settings, transport="stdio"),
             )
             read, write = await self._stack.enter_async_context(
                 stdio_client(params)
@@ -66,6 +128,14 @@ class DBClient:
     async def __aexit__(self, *exc: object) -> None:
         self._session = None
         await self._stack.aclose()
+        if self._server_proc is not None:
+            self._server_proc.terminate()
+            try:
+                self._server_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._server_proc.kill()
+                self._server_proc.wait(timeout=5)
+            self._server_proc = None
 
     async def list_tools(self) -> list[str]:
         result = await self.session.list_tools()

@@ -70,6 +70,11 @@ class Settings:
         """Full URL a client should connect to for the HTTP transport."""
         return f"http://{self.host}:{self.port}{MCP_PATH}"
 
+    @property
+    def health_url(self) -> str:
+        """Health-check URL for the FastAPI HTTP host."""
+        return f"http://{self.host}:{self.port}/healthz"
+
     @classmethod
     def from_env(cls) -> "Settings":
         db_path = Path(os.environ.get("MCP_DB_PATH", str(DEFAULT_DB_PATH)))
