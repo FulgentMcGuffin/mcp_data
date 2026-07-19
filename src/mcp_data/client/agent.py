@@ -25,7 +25,7 @@ from langgraph.prebuilt import create_react_agent
 
 from mcp_data.client.session import DBClient
 
-DEFAULT_MODEL = "claude-sonnet-4-5"
+DEFAULT_MODEL = "claude-sonnet-5"
 
 _AGENT_SYSTEM_PROMPT = """\
 You are an expert data analyst with access to tools for querying a database.
