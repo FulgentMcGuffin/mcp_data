@@ -76,7 +76,9 @@ class SQLAgent:
     """A LangGraph ReAct agent that answers questions over the MCP database.
 
     The agent is bound to an *already-connected* :class:`DBClient`; its tools are
-    loaded from that client's MCP session.
+    loaded from that client's MCP session, plus any caller-supplied
+    ``extra_tools`` (plain LangChain tools invoked in-process, no MCP round
+    trip involved).
     """
 
     def __init__(
@@ -85,15 +87,18 @@ class SQLAgent:
         *,
         model: object | None = None,
         profile_prompt: str | None = None,
+        extra_tools: list | None = None,
     ) -> None:
         self._client = client
         self._model = _build_model(model)
         self._profile_prompt = profile_prompt
+        self._extra_tools = list(extra_tools) if extra_tools else []
         self._agent = None
 
     async def _ensure_agent(self):
         if self._agent is None:
             tools = await load_mcp_tools(self._client.session)
+            tools = list(tools) + self._extra_tools
             self._agent = create_react_agent(
                 self._model,
                 tools,

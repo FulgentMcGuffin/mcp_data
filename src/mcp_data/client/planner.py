@@ -155,7 +155,12 @@ class LLMPlanner(Planner):
 
     DEFAULT_MODEL = "claude-sonnet-4-5"
 
-    def __init__(self, model=None, profile_prompt: str | None = None) -> None:
+    def __init__(
+        self,
+        model=None,
+        profile_prompt: str | None = None,
+        extra_tools: list | None = None,
+    ) -> None:
         if model is None:
             # Imported here so the rest of the module loads without the SDK.
             from langchain_anthropic import ChatAnthropic
@@ -173,6 +178,7 @@ class LLMPlanner(Planner):
             )
         self._model = model
         self._profile_prompt = profile_prompt
+        self._extra_tools = list(extra_tools) if extra_tools else []
 
     @property
     def system_prompt(self) -> str:
@@ -188,10 +194,14 @@ class LLMPlanner(Planner):
         return _SYSTEM_PROMPT
 
     def plan(self, query: str, available_tools: list[str]) -> list[ToolCall]:
-        # Restrict to tools the server actually exposes.
+        # Restrict built-in SQL tools to what the server actually exposes;
+        # caller-supplied extra_tools (e.g. custom Python-side actions) are
+        # always offered regardless of the server's tool list.
+        extra_by_name = {t.name: t for t in self._extra_tools}
         lc_tools = [
             t for name, t in _ALL_LC_TOOLS.items() if name in available_tools
         ]
+        lc_tools.extend(extra_by_name.values())
         if not lc_tools:
             return []
 
@@ -203,9 +213,10 @@ class LLMPlanner(Planner):
             ]
         )
 
+        allowed = set(available_tools) | set(extra_by_name)
         calls: list[ToolCall] = []
         for tc in response.tool_calls:
             name = tc["name"]
-            if name in available_tools:
+            if name in allowed:
                 calls.append(ToolCall(name=name, arguments=tc.get("args", {})))
         return calls
