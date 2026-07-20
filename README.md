@@ -35,8 +35,8 @@ and financial terminology from a per-dataset semantic profile.
 A **Model Context Protocol (MCP) server and client** for querying databases with natural
 language. Choose between **SQLite** and **DuckDB** backends via `MCP_DB_TYPE`, both hidden
 behind a generic `DataBackend` abstraction so the storage layer can be swapped without
-touching the server tools or client. Transport is selectable between **stdio** and
-**Streamable HTTP** (hosted via FastAPI).
+touching the server tools or client. Transport defaults to **stdio**; **Streamable HTTP**
+(hosted via FastAPI) is available by setting `MCP_TRANSPORT=http`.
 
 Key libraries:
 
@@ -197,7 +197,12 @@ db-mcp-gui                              # same as --gui
 ```
 
 ```python
-from mcp_data.client.session import DBClient  # use as a library
+from mcp_data.config import Settings
+from mcp_data.client.session import DBClient
+
+# Library clients: omit transport (defaults to stdio) or set it explicitly.
+settings = Settings(transport="stdio", db_path="path/to/db.duckdb", db_type="duckdb")
+# async with DBClient(settings) as client: ...
 ```
 
 > **Note — runtime data.** The example database (`data/`) and curated semantic profiles
@@ -231,7 +236,10 @@ variables take precedence over both files.
 
 ## Running
 
-### stdio (client spawns the server automatically)
+### stdio (default — client spawns the server automatically)
+
+No extra env vars are required. The client spawns `python -m mcp_data.server` over
+stdio for each session:
 
 ```bash
 # One-shot queries
@@ -243,9 +251,10 @@ uv run db-mcp-client "sql: select * from customers limit 5"
 uv run db-mcp-client
 ```
 
-### Streamable HTTP
+### Streamable HTTP (opt-in)
 
-When `MCP_TRANSPORT=http`, the client **automatically starts a local HTTP server**
+Set `MCP_TRANSPORT=http` (in the environment or `.env`) to use Streamable HTTP.
+When HTTP is selected, the client **automatically starts a local HTTP server**
 if none is listening on `MCP_HOST`/`MCP_PORT`. You do not need a separate terminal
 for local use — just run the client:
 
@@ -253,7 +262,9 @@ for local use — just run the client:
 MCP_TRANSPORT=http uv run db-mcp-client "tables"
 ```
 
-For a long-lived server (e.g. shared by multiple clients), start it explicitly:
+For a long-lived server (e.g. shared by multiple clients), start it explicitly with
+`MCP_TRANSPORT=http` — bare `uv run db-mcp-server` uses **stdio** (the default) and
+is not suitable as a long-lived HTTP endpoint:
 
 ```bash
 # Terminal 1 — start the server
@@ -265,10 +276,10 @@ MCP_TRANSPORT=http uv run db-mcp-client "tables"
 
 Health check: `GET http://127.0.0.1:8000/healthz`
 
-For Windows/Powershell:
+For Windows/PowerShell (OS env vars take precedence over `.env`):
 
 ```powershell
-# Terminal 1: Start the MCP Server (with a custom db - make sure it is not overwritten in the .env file when setting from the terminal, .env file takes priority)
+# Terminal 1: Start the MCP Server over HTTP
 $env:MCP_TRANSPORT="http"
 $env:MCP_DB_TYPE="duckdb"
 $env:MCP_DB_PATH="D:/custom_db.duckdb"
@@ -303,13 +314,16 @@ curl http://127.0.0.1:8000/healthz
 
 Should return: `{"status":"ok","backend":"duckdb"}`
 
-**Note**: If you want to use the settings from your  `.env` file, you can simplify Terminal 1 to just:
-```powershell
-uv run db-mcp-server
-```
+**Note**: To use other settings from `.env` while still running HTTP, keep
+`MCP_TRANSPORT=http` set (in the shell or temporarily in `.env`). For example:
 
-And in Terminal 2, set the API key and run the client:
 ```powershell
+# Terminal 1 — .env may supply DB path/type; transport must still be http
+$env:MCP_TRANSPORT="http"
+uv run db-mcp-server
+
+# Terminal 2
+$env:MCP_TRANSPORT="http"
 $env:ANTHROPIC_API_KEY="your-api-key"
 uv run db-mcp-client --llm "your question"
 ```
