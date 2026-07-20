@@ -210,6 +210,87 @@ settings = Settings(transport="stdio", db_path="path/to/db.duckdb", db_type="duc
 > set `MCP_DB_PATH` and `MCP_SEMANTICS_DIR` to point at your own files. Without a
 > profile, the server falls back to live schema introspection automatically.
 
+### Register your own data
+
+Each MCP session points at **one database** plus an optional **semantic profile**
+(`semantics/<dataset>.yaml`). Register a dataset by supplying three things:
+
+| What | Purpose |
+| --- | --- |
+| Database path | SQLite (`.db`) or DuckDB (`.duckdb`) file to query |
+| `dataset` name | Keys the profile file (`<dataset>.yaml`) and `describe_dataset` |
+| Semantics directory | Folder containing that YAML profile |
+
+**CLI / one dataset (`.env`):**
+
+```env
+MCP_DB_TYPE=duckdb
+MCP_DB_PATH=D:/data/duckdb/bond_analytics.duckdb
+MCP_DATASET=bond_analytics
+MCP_SEMANTICS_DIR=./semantics
+```
+
+Then run `db-mcp-client` as usual — transport defaults to stdio.
+
+**Library client (one dataset per session):**
+
+```python
+from pathlib import Path
+
+from mcp_data.config import Settings
+from mcp_data.client.session import DBClient
+
+settings = Settings(
+    transport="stdio",
+    db_type="duckdb",
+    db_path=Path("D:/data/duckdb/bond_analytics.duckdb"),
+    dataset="bond_analytics",
+    semantics_dir=Path("./semantics"),
+)
+
+async with DBClient(settings) as client:
+    tables = await client.list_tables()
+```
+
+Author a profile at `semantics/bond_analytics.yaml` (see [Semantic layer](#semantic-layer)).
+The `dataset:` field inside the YAML should match `MCP_DATASET` / `Settings.dataset`.
+
+**Multiple datasets in your own app**
+
+When you need several databases (yield curves, bond analytics, cache, …), register
+each one in application config and build a separate `Settings` object per query.
+[cheapquant-fixed-income](https://github.com/FulgentMcGuffin/cheapquant-fixed-income)
+does this — the `bond_analytics` entry is defined in
+[`config.py` (line 203)](https://github.com/FulgentMcGuffin/cheapquant-fixed-income/blob/main/src/cheapquant_fi/config.py#L203):
+
+```python
+"bond_analytics": DatasetConfig(
+    db_path=bond_analytics_db_path,
+    semantics_dir=bond_analytics_semantics_dir,
+    dataset=bond_analytics_db_path.stem,  # -> "bond_analytics"
+    keywords=_BOND_ANALYTICS_KEYWORDS,    # optional NL routing hints
+),
+```
+
+At query time, map the chosen dataset to `mcp_data.config.Settings` and open a
+`DBClient` (stdio transport, one short-lived server subprocess per session):
+
+```python
+def mcp_settings_for(app: AppSettings, target: str) -> Settings:
+    cfg = app.mcp_datasets[target]
+    return Settings(
+        transport="stdio",
+        db_path=cfg.db_path,
+        dataset=cfg.dataset,
+        semantics_dir=cfg.semantics_dir,
+        server_name=f"myapp-{target}",
+    )
+```
+
+Paths for `bond_analytics` (and sibling datasets) live in that project's
+[`config/cqfi.yaml`](https://github.com/FulgentMcGuffin/cheapquant-fixed-income/blob/main/config/cqfi.yaml);
+extra datasets can be added under a top-level `datasets:` block without code changes.
+
 ---
 
 ## Configuration (environment variables)
@@ -553,8 +634,6 @@ live API call required), and optional GUI module imports (when `uv sync --group 
 
 ## Roadmap
 
-- ✅ **Desktop GUI** — PySide6 chat + table + plotnine charts via `db-mcp-client --gui`
-  / `db-mcp-gui` (optional `uv sync --group gui`).
 - **Redis cache backend** — add `RedisBackend(DataBackend)` and wire it into
   `create_backend()`; the server tools, Hamilton pipeline, and client are unchanged.
   A cache node could slot into the Hamilton dataflow between `validated_sql` and
