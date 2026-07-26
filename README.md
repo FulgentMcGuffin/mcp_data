@@ -55,28 +55,33 @@ Key libraries:
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    UserQuery["👤 User Query"]
+    
+    UserQuery --> Planning["Planning Layer"]
+    
+    Planning --> Rule["🔑 RuleBasedPlanner<br/>keyword syntax<br/>no API key"]
+    Planning --> LLMSingle["⚡ LLMPlanner<br/>single-shot<br/>--llm-single-shot"]
+    Planning --> SQLAgent["🤖 SQLAgent<br/>ReAct loop<br/>--llm"]
+    
+    Rule --> Client["📡 MCP ClientSession"]
+    LLMSingle --> Client
+    SQLAgent --> Client
+    
+    Client -->|stdio or<br/>Streamable HTTP| Server["🖥️ FastMCP Server"]
+    
+    Server --> Tools["🔧 MCP Tools<br/>list_tables<br/>get_schema<br/>run_sql<br/>describe_dataset"]
+    
+    Tools --> Hamilton["⚙️ Hamilton Dataflow<br/>validate → execute → polars frame → JSON"]
+    
+    Hamilton --> Backend["💾 DataBackend<br/>SQLiteSource or DuckDBSource<br/>with read_only protection"]
+    
+    Backend --> Semantics["📋 semantics/&lt;dataset&gt;.yaml<br/>served via describe_dataset"]
+    
+    Semantics --> Result["✅ Results<br/>SQL response<br/>with semantic context"]
 ```
-user query
-    │
-    ├── RuleBasedPlanner  (keyword syntax, no API key)
-    ├── LLMPlanner        (single-shot, --llm-single-shot)
-    └── SQLAgent          (ReAct loop, --llm)
-            │
-            ▼
-    MCP ClientSession ─── stdio or Streamable HTTP ───► FastMCP server
-                                                              │
-                                          tools: list_tables, get_schema,
-                                                 run_sql, describe_dataset
-                                                              │
-                                          Hamilton dataflow (validate →
-                                          execute → polars frame → JSON)
-                                                              │
-                                          DataBackend (SQLiteSource or DuckDBSource)
-                                          with read_only protection
-                                                              │
-                                          semantics/<dataset>.yaml
-                                          (served via describe_dataset)
-```
+
 
 A per-dataset **semantic layer** (see [Semantic layer](#semantic-layer)) is co-located
 with the database and exposed by the MCP server. Both LLM modes fetch it on startup so
