@@ -1,5 +1,7 @@
 # mcp-data
 
+⭐ If you find this repository useful, please **consider starring it**.
+
 A **Model Context Protocol (MCP) server and client** for querying databases with natural
 language. Ask questions about your data in plain English and get SQL-backed answers.
 
